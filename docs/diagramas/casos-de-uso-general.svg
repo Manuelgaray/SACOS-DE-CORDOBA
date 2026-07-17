@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="540" viewBox="0 0 700 540" font-family="Segoe UI, system-ui, sans-serif">
+  <defs><marker id="inc" markerWidth="11" markerHeight="11" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#AEAEAE" stroke-width="1.2"/></marker></defs>
+  <rect width="700" height="540" fill="#1A1A1A"/>
+  <text x="350" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="#FFFFFF">Diagrama general de casos de uso</text>
+
+  <!-- Frontera -->
+  <rect x="180" y="48" width="380" height="456" rx="4" fill="none" stroke="#707070" stroke-width="1.2"/>
+  <text x="370" y="72" text-anchor="middle" font-size="13.5" font-weight="600" fill="#FFFFFF">Sistema de Control de Producción</text>
+
+  <!-- Asociaciones Jefe -->
+  <g fill="none" stroke="#AEAEAE" stroke-width="1.25">
+    <path d="M98,158 Q180,120 270,108"/>
+    <path d="M98,158 Q180,170 270,190"/>
+    <path d="M98,158 Q185,215 270,278"/>
+    <path d="M98,158 Q185,255 270,365"/>
+  </g>
+  <!-- Asociaciones Supervisor -->
+  <g fill="none" stroke="#7FA98C" stroke-width="1.25" stroke-dasharray="1 0">
+    <path d="M98,418 Q175,270 270,110"/>
+    <path d="M98,418 Q175,310 270,192"/>
+    <path d="M98,418 Q185,400 270,368"/>
+    <path d="M98,418 Q185,430 270,452"/>
+  </g>
+  <!-- Actor secundario -->
+  <line x1="582" y1="108" x2="470" y2="108" stroke="#AEAEAE" stroke-width="1.25"/>
+
+  <!-- Casos de uso -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="1.4">
+    <ellipse cx="370" cy="108" rx="100" ry="30"/>
+    <ellipse cx="370" cy="192" rx="100" ry="30"/>
+    <ellipse cx="370" cy="278" rx="100" ry="32"/>
+    <ellipse cx="370" cy="366" rx="100" ry="30"/>
+    <ellipse cx="370" cy="452" rx="100" ry="32"/>
+  </g>
+  <g fill="#FFFFFF" text-anchor="middle" font-size="12.5">
+    <text x="370" y="112">Iniciar sesión</text>
+    <text x="370" y="196">Navegar en el sistema</text>
+    <text x="370" y="274">Crear orden<tspan x="370" dy="16">de producción</tspan></text>
+    <text x="370" y="370">Filtrar órdenes</text>
+    <text x="370" y="448">Capturar avance<tspan x="370" dy="16">por área</tspan></text>
+  </g>
+
+  <!-- Actor: Jefe de producción -->
+  <g stroke="#FFFFFF" stroke-width="1.8" fill="none">
+    <circle cx="80" cy="146" r="13"/>
+    <line x1="80" y1="159" x2="80" y2="190"/>
+    <line x1="62" y1="170" x2="98" y2="170"/>
+    <line x1="80" y1="190" x2="65" y2="212"/>
+    <line x1="80" y1="190" x2="95" y2="212"/>
+  </g>
+  <text x="80" y="234" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">Jefe de</text>
+  <text x="80" y="249" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">producción</text>
+
+  <!-- Actor: Supervisor de área -->
+  <g stroke="#FFFFFF" stroke-width="1.8" fill="none">
+    <circle cx="80" cy="406" r="13"/>
+    <line x1="80" y1="419" x2="80" y2="450"/>
+    <line x1="62" y1="430" x2="98" y2="430"/>
+    <line x1="80" y1="450" x2="65" y2="472"/>
+    <line x1="80" y1="450" x2="95" y2="472"/>
+  </g>
+  <text x="80" y="494" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">Supervisor</text>
+  <text x="80" y="509" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">de área</text>
+
+  <!-- Actor secundario: Servicio de Autenticación -->
+  <g stroke="#C9A07A" stroke-width="1.8" fill="none">
+    <circle cx="600" cy="96" r="12"/>
+    <line x1="600" y1="108" x2="600" y2="136"/>
+    <line x1="584" y1="118" x2="616" y2="118"/>
+    <line x1="600" y1="136" x2="587" y2="156"/>
+    <line x1="600" y1="136" x2="613" y2="156"/>
+  </g>
+  <text x="600" y="176" text-anchor="middle" font-size="11" font-weight="600" fill="#C9A07A">Servicio de</text>
+  <text x="600" y="190" text-anchor="middle" font-size="11" font-weight="600" fill="#C9A07A">Autenticación</text>
+  <text x="528" y="100" text-anchor="middle" font-size="10" font-style="italic" fill="#CFCFCF">«secundario»</text>
+
+  <!-- Leyenda -->
+  <line x1="200" y1="520" x2="230" y2="520" stroke="#AEAEAE" stroke-width="1.25"/>
+  <text x="236" y="524" font-size="10.5" fill="#BDBDBD">Jefe de producción</text>
+  <line x1="360" y1="520" x2="390" y2="520" stroke="#7FA98C" stroke-width="1.25"/>
+  <text x="396" y="524" font-size="10.5" fill="#BDBDBD">Supervisor de área</text>
+</svg>

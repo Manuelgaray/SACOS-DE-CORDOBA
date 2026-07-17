@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{'brand-green':'#009166','brand-green-dark':'#047150','brand-green-light':'#D7EFE5','brand-orange':'#B8CA5B','brand-orange-dark':'#6E7D24','sidebar-text':'#B8D4BF'},boxShadow:{card:'0 1px 3px rgba(20,56,34,.07),0 1px 2px rgba(20,56,34,.04)'}}}}
+</script>
+<style>*{font-family:'Segoe UI',system-ui,sans-serif}body{margin:0}</style>
+</head>
+<body>
+<div class="min-h-screen flex">
+  <!-- Panel izquierdo -->
+  <div class="w-1/2 relative flex flex-col justify-between p-10 overflow-hidden bg-gradient-to-br from-[#00684B] via-[#00684B] to-[#00684B]">
+    <!-- LogoMark -->
+    <div class="relative z-10">
+      <div class="inline-flex flex-col items-start">
+        <div class="font-black leading-none tracking-tight text-4xl text-white">SAC<span class="text-brand-orange">O</span>S</div>
+        <div class="flex items-center mt-1">
+          <div class="w-0 h-0 border-t-[9px] border-t-transparent border-b-[9px] border-b-transparent border-r-[8px] border-r-[#009166]"></div>
+          <div class="bg-brand-green px-2.5 py-[3px]"><span class="font-bold tracking-widest text-[11px] text-white">DE CÓRDOBA</span></div>
+          <div class="w-0 h-0 border-t-[9px] border-t-transparent border-b-[9px] border-b-transparent border-l-[8px] border-l-[#009166]"></div>
+        </div>
+        <div class="font-bold tracking-[0.2em] mt-1 text-brand-orange text-[10px]">BULK CONTAINERS</div>
+      </div>
+    </div>
+
+    <div class="relative z-10 space-y-6">
+      <h2 class="text-4xl font-black text-white leading-tight">Control de<br>producción<br><span class="text-brand-orange">inteligente</span></h2>
+      <div class="space-y-3">
+        <div class="flex items-center gap-3"><div class="w-5 h-5 rounded-full bg-brand-orange/25 flex items-center justify-center"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2L8 3" stroke="#B8CA5B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="text-sm text-white/85">Gestión de órdenes en tiempo real</span></div>
+        <div class="flex items-center gap-3"><div class="w-5 h-5 rounded-full bg-brand-orange/25 flex items-center justify-center"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2L8 3" stroke="#B8CA5B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="text-sm text-white/85">Control de calidad integrado</span></div>
+        <div class="flex items-center gap-3"><div class="w-5 h-5 rounded-full bg-brand-orange/25 flex items-center justify-center"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2L8 3" stroke="#B8CA5B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="text-sm text-white/85">Seguimiento por área de producción</span></div>
+      </div>
+    </div>
+
+    <div class="relative z-10"><p class="text-xs text-white/40 italic tracking-wide">"©2026 Sacos de Cordoba Todos los Derechos Reservados"</p></div>
+  </div>
+
+  <!-- Panel derecho -->
+  <div class="flex-1 flex items-center justify-center px-4 py-12 bg-[#F6F8F1]">
+    <div class="w-full max-w-sm">
+      <div class="bg-white rounded-2xl border border-[#E2E5E2] p-7 shadow-card">
+        <h2 class="text-lg font-semibold mb-1 text-[#2A2E2B]">Iniciar sesión</h2>
+        <p class="text-sm text-[#6B716C] mb-6">Ingresa tus credenciales para continuar</p>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-[#2A2E2B] mb-1.5">Email</label>
+            <input value="supervisor@sacoscordoba.com" class="w-full px-3.5 py-2.5 text-sm border border-[#E2E5E2] rounded-lg bg-[#F8FAF8] text-[#2A2E2B]"/>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-[#2A2E2B] mb-1.5">Contraseña</label>
+            <input type="password" value="123456789" class="w-full px-3.5 py-2.5 text-sm border border-[#E2E5E2] rounded-lg bg-[#F8FAF8]"/>
+          </div>
+          <button class="w-full bg-brand-green text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm">Iniciar sesión</button>
+        </div>
+      </div>
+      <p class="text-center text-xs text-[#8A9A8C] mt-6">¿Problemas para acceder? Contacta al administrador.</p>
+    </div>
+  </div>
+</div>
+</body></html>

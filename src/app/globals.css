@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-green: #009166;
+  --brand-green-dark: #047150;
+  --brand-green-light: #D7EFE5;
+  --brand-orange: #B8CA5B;
+  --brand-orange-light: #FBF7D2;
+  --background: #F6F8F1;
+  --foreground: #1A1A1A;
+  --muted: #6B716C;
+  --border: #E2E5E2;
+  --card: #FFFFFF;
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--brand-green-light);
+  color: var(--brand-green-dark);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Entrada sutil de los modales */
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-modal-in {
+  animation: modal-in 140ms ease-out;
+}

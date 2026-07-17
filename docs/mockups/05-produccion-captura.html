@@ -1,0 +1,78 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{'brand-green':'#009166','brand-green-dark':'#047150','brand-green-light':'#D7EFE5','brand-green-50':'#EEF7F2','brand-orange':'#B8CA5B','brand-orange-dark':'#6E7D24','sidebar-text':'#B8D4BF','corte-bg':'#F5EEE0','corte-text':'#8A6A3E'},boxShadow:{card:'0 1px 3px rgba(20,56,34,.07),0 1px 2px rgba(20,56,34,.04)'}}}}
+</script>
+<style>*{font-family:'Segoe UI',system-ui,sans-serif}body{margin:0}</style>
+</head>
+<body class="bg-[#F6F8F1]">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-gradient-to-b from-[#00684B] to-[#00684B] flex flex-col shrink-0">
+    <div class="px-4 py-4 border-b border-white/10 flex items-center justify-center"><div class="inline-flex flex-col items-start"><div class="font-black leading-none tracking-tight text-lg text-white">SAC<span class="text-brand-orange">O</span>S</div><div class="flex items-center mt-[3px]"><div class="w-0 h-0 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent border-r-[6px] border-r-[#009166]"></div><div class="bg-brand-green px-2 py-[2px]"><span class="font-bold tracking-widest text-[8px] text-white">DE CÓRDOBA</span></div><div class="w-0 h-0 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent border-l-[6px] border-l-[#009166]"></div></div><div class="font-bold tracking-[0.2em] mt-[2px] text-brand-orange text-[7px]">BULK CONTAINERS</div></div></div>
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <div class="text-[10px] uppercase tracking-wider text-sidebar-text/60 px-3 mb-2 font-medium">Menú</div>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-text"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg><span>Dashboard</span></a>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-text"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 4.5h12M3 9h12M3 13.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Órdenes</span></a>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm bg-white/15 text-white font-medium shadow-sm"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 16V8l5 3V8l5 3V4l4 2v10H2z" stroke="#B8CA5B" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Producción</span><div class="ml-auto w-1.5 h-1.5 rounded-full bg-brand-orange"></div></a>
+    </nav>
+    <div class="px-3 py-4 border-t border-white/10"><div class="flex items-center gap-2.5 px-2 py-2 mb-2"><div class="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center"><span class="text-white text-xs font-medium">J</span></div><div class="flex-1 min-w-0"><div class="text-xs font-medium text-white truncate">Jareth Trejo</div><div class="text-[10px] text-sidebar-text capitalize">supervisor · corte</div></div></div><button class="w-full flex items-center gap-2 px-3 py-2 text-xs text-sidebar-text rounded-lg"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 12H3a1 1 0 01-1-1V3a1 1 0 011-1h2M9 10l3-3-3-3M12 7H5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Cerrar sesión</span></button></div>
+  </aside>
+
+  <main class="flex-1 p-6">
+    <div class="max-w-5xl mx-auto space-y-5">
+      <div>
+        <a class="flex items-center gap-1.5 text-sm text-[#6B716C] mb-3"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Producción</a>
+        <div class="flex items-center gap-3"><span class="inline-flex px-3 py-1 rounded-lg text-sm font-bold bg-corte-bg text-corte-text">Corte</span><h1 class="text-xl font-semibold text-[#2A2E2B]">Captura de producción</h1></div>
+        <p class="text-sm text-[#6B716C] mt-1">1 orden en cola · captura cuántas piezas llevas</p>
+      </div>
+
+      <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+        <div class="w-full flex items-center justify-between gap-3 px-4 py-3">
+          <div><div class="flex items-center gap-2"><span class="text-sm font-bold text-[#2A2E2B] font-mono">SC185-26</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#2A2E2B] text-white">LÍNEA 2</span></div><div class="text-xs text-[#6B716C]">SACOS DEL NORTE · 4-PANEL · <span class="font-mono">500</span> sacos</div></div>
+          <div class="flex items-center gap-3"><div class="text-right"><div class="text-lg font-bold text-brand-green leading-none">62%</div><div class="text-[10px] text-[#8A9A8C]">avance área</div></div><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M5 7l4 4 4-4" stroke="#8A9A8C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="px-4 pb-2"><div class="h-1.5 bg-[#E8EFE9] rounded-full overflow-hidden"><div class="h-full rounded-full bg-brand-green" style="width:62%"></div></div></div>
+
+        <div class="border-t border-[#E8EFE9] divide-y divide-[#F0F5F0]">
+          <!-- Componente: Laterales -->
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3 mb-2"><span class="text-sm font-medium text-[#2A2E2B]">Laterales</span><div class="text-xs text-[#8A9A8C] font-mono">1,400 / 2,000</div></div>
+            <div class="h-2 bg-[#E8EFE9] rounded-full overflow-hidden mb-2"><div class="h-full rounded-full bg-brand-orange" style="width:70%"></div></div>
+            <div class="flex items-center gap-2"><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">−</button><input value="1400" class="w-20 px-2 py-1 text-sm text-center border border-[#E2E5E2] rounded-md bg-[#F8FAF8] font-mono"/><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">+</button><span class="text-[11px] text-[#8A9A8C] mx-1">(+50)</span><span class="text-[11px] text-brand-orange font-medium">Faltan 600</span><button class="ml-auto text-[11px] font-medium text-brand-green border border-brand-green/30 rounded-md px-2 py-1">Completar todo</button></div>
+          </div>
+          <!-- Base (completo) -->
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3 mb-2"><div class="flex items-center gap-2"><span class="text-sm font-medium text-[#2A2E2B]">Base</span><span class="text-[10px] font-semibold text-brand-green bg-brand-green-light px-1.5 py-0.5 rounded">✓ Completo</span></div><div class="text-xs text-[#8A9A8C] font-mono">500 / 500</div></div>
+            <div class="h-2 bg-[#E8EFE9] rounded-full overflow-hidden mb-2"><div class="h-full rounded-full bg-brand-green w-full"></div></div>
+            <div class="flex items-center gap-2"><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">−</button><input value="500" class="w-20 px-2 py-1 text-sm text-center border border-[#E2E5E2] rounded-md bg-[#F8FAF8] font-mono"/><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold opacity-40">+</button><span class="text-[11px] text-[#8A9A8C] mx-1">(+10)</span></div>
+          </div>
+          <!-- Tapas (completo) -->
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3 mb-2"><div class="flex items-center gap-2"><span class="text-sm font-medium text-[#2A2E2B]">Tapas</span><span class="text-[10px] font-semibold text-brand-green bg-brand-green-light px-1.5 py-0.5 rounded">✓ Completo</span></div><div class="text-xs text-[#8A9A8C] font-mono">500 / 500</div></div>
+            <div class="h-2 bg-[#E8EFE9] rounded-full overflow-hidden mb-2"><div class="h-full rounded-full bg-brand-green w-full"></div></div>
+            <div class="flex items-center gap-2"><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">−</button><input value="500" class="w-20 px-2 py-1 text-sm text-center border border-[#E2E5E2] rounded-md bg-[#F8FAF8] font-mono"/><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold opacity-40">+</button><span class="text-[11px] text-[#8A9A8C] mx-1">(+10)</span></div>
+          </div>
+          <!-- Válvula de carga -->
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3 mb-2"><span class="text-sm font-medium text-[#2A2E2B]">Válvula de carga</span><div class="text-xs text-[#8A9A8C] font-mono">320 / 500</div></div>
+            <div class="h-2 bg-[#E8EFE9] rounded-full overflow-hidden mb-2"><div class="h-full rounded-full bg-brand-orange" style="width:64%"></div></div>
+            <div class="flex items-center gap-2"><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">−</button><input value="320" class="w-20 px-2 py-1 text-sm text-center border border-[#E2E5E2] rounded-md bg-[#F8FAF8] font-mono"/><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">+</button><span class="text-[11px] text-[#8A9A8C] mx-1">(+10)</span><span class="text-[11px] text-brand-orange font-medium">Faltan 180</span><button class="ml-auto text-[11px] font-medium text-brand-green border border-brand-green/30 rounded-md px-2 py-1">Completar todo</button></div>
+          </div>
+          <!-- Válvula de descarga (0) -->
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3 mb-2"><span class="text-sm font-medium text-[#2A2E2B]">Válvula de descarga</span><div class="text-xs text-[#8A9A8C] font-mono">0 / 500</div></div>
+            <div class="h-2 bg-[#E8EFE9] rounded-full overflow-hidden mb-2"><div class="h-full rounded-full bg-brand-orange" style="width:0%"></div></div>
+            <div class="flex items-center gap-2"><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold opacity-40">−</button><input value="0" class="w-20 px-2 py-1 text-sm text-center border border-[#E2E5E2] rounded-md bg-[#F8FAF8] font-mono"/><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">+</button><span class="text-[11px] text-[#8A9A8C] mx-1">(+10)</span><span class="text-[11px] text-brand-orange font-medium">Faltan 500</span><button class="ml-auto text-[11px] font-medium text-brand-green border border-brand-green/30 rounded-md px-2 py-1">Completar todo</button></div>
+          </div>
+          <!-- Cinturones -->
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3 mb-2"><span class="text-sm font-medium text-[#2A2E2B]">Cinturones</span><div class="text-xs text-[#8A9A8C] font-mono">800 / 2,000</div></div>
+            <div class="h-2 bg-[#E8EFE9] rounded-full overflow-hidden mb-2"><div class="h-full rounded-full bg-brand-orange" style="width:40%"></div></div>
+            <div class="flex items-center gap-2"><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">−</button><input value="800" class="w-20 px-2 py-1 text-sm text-center border border-[#E2E5E2] rounded-md bg-[#F8FAF8] font-mono"/><button class="w-7 h-7 rounded-md border border-[#E2E5E2] text-[#6B716C] flex items-center justify-center text-sm font-bold">+</button><span class="text-[11px] text-[#8A9A8C] mx-1">(+50)</span><span class="text-[11px] text-brand-orange font-medium">Faltan 1,200</span><button class="ml-auto text-[11px] font-medium text-brand-green border border-brand-green/30 rounded-md px-2 py-1">Completar todo</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body></html>

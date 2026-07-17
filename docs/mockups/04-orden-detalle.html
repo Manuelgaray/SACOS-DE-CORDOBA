@@ -1,0 +1,123 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{'brand-green':'#009166','brand-green-dark':'#047150','brand-green-light':'#D7EFE5','brand-green-50':'#EEF7F2','brand-orange':'#B8CA5B','brand-orange-dark':'#6E7D24','sidebar-text':'#B8D4BF','almacen-bg':'#F0EEE6','almacen-text':'#6B6450','corte-bg':'#F5EEE0','corte-text':'#8A6A3E','small-bg':'#E9EFF5','small-text':'#45688A','big-bg':'#E7F0EC','big-text':'#3E6E5C','tips-bg':'#ECECF3','tips-text':'#5B5685','tapa-bg':'#F3E9EE','tapa-text':'#8A5A6E','calidad-bg':'#F3E9E9','calidad-text':'#8A4A4A','empaque-bg':'#EAF0E2','empaque-text':'#5A6E40'},boxShadow:{card:'0 1px 3px rgba(20,56,34,.07),0 1px 2px rgba(20,56,34,.04)'}}}}
+</script>
+<style>*{font-family:'Segoe UI',system-ui,sans-serif}body{margin:0}</style>
+</head>
+<body class="bg-[#F6F8F1]">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-gradient-to-b from-[#00684B] to-[#00684B] flex flex-col shrink-0">
+    <div class="px-4 py-4 border-b border-white/10 flex items-center justify-center"><div class="inline-flex flex-col items-start"><div class="font-black leading-none tracking-tight text-lg text-white">SAC<span class="text-brand-orange">O</span>S</div><div class="flex items-center mt-[3px]"><div class="w-0 h-0 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent border-r-[6px] border-r-[#009166]"></div><div class="bg-brand-green px-2 py-[2px]"><span class="font-bold tracking-widest text-[8px] text-white">DE CÓRDOBA</span></div><div class="w-0 h-0 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent border-l-[6px] border-l-[#009166]"></div></div><div class="font-bold tracking-[0.2em] mt-[2px] text-brand-orange text-[7px]">BULK CONTAINERS</div></div></div>
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <div class="text-[10px] uppercase tracking-wider text-sidebar-text/60 px-3 mb-2 font-medium">Menú</div>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-text"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg><span>Dashboard</span></a>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm bg-white/15 text-white font-medium shadow-sm"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 4.5h12M3 9h12M3 13.5h8" stroke="#B8CA5B" stroke-width="1.5" stroke-linecap="round"/></svg><span>Órdenes</span><div class="ml-auto w-1.5 h-1.5 rounded-full bg-brand-orange"></div></a>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-text"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 16V8l5 3V8l5 3V4l4 2v10H2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Producción</span></a>
+    </nav>
+    <div class="px-3 py-4 border-t border-white/10"><div class="flex items-center gap-2.5 px-2 py-2 mb-2"><div class="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center"><span class="text-white text-xs font-medium">M</span></div><div class="flex-1 min-w-0"><div class="text-xs font-medium text-white truncate">Manuel Hernández</div><div class="text-[10px] text-sidebar-text capitalize">jefe · producción</div></div></div><button class="w-full flex items-center gap-2 px-3 py-2 text-xs text-sidebar-text rounded-lg"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 12H3a1 1 0 01-1-1V3a1 1 0 011-1h2M9 10l3-3-3-3M12 7H5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Cerrar sesión</span></button></div>
+  </aside>
+
+  <main class="flex-1 p-6">
+    <div class="max-w-5xl mx-auto space-y-5">
+      <a class="flex items-center gap-1.5 text-sm text-[#6B716C]"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver a órdenes</a>
+
+      <!-- Header -->
+      <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+        <div class="bg-gradient-to-r from-brand-green-50 to-white px-5 py-4 border-b border-[#E2E5E2]">
+          <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-xl font-black text-[#2A2E2B] font-mono">SC191-26CD</h1>
+                <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#2A2E2B] text-white">LÍNEA 1</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">⚠ FMF Vencida</span>
+                <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FBF7D2] text-brand-orange-dark">★ GRADO ALIMENTO</span>
+              </div>
+              <p class="text-sm text-[#6B716C] mt-0.5">BULK LIFT</p>
+            </div>
+            <div class="text-right">
+              <div class="flex items-center gap-1.5 justify-end mb-1.5"><span class="text-[10px] uppercase tracking-wide text-[#8A9A8C]">Estado</span><span class="text-xs font-semibold rounded-md border px-2 py-1 bg-brand-green-light text-brand-green border-brand-green/30">Activa ▾</span></div>
+              <div class="text-xs text-[#8A9A8C]">Elaborado: 01 mar 2026</div>
+              <div class="text-xs font-semibold mt-0.5 text-red-600">FMF: 19 may 2026</div>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-4 gap-0 divide-x divide-y divide-[#E8EFE9]">
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Spec</div><div class="text-sm font-semibold text-[#2A2E2B] font-mono">MEXQ07354</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Medida</div><div class="text-sm font-semibold text-[#2A2E2B] font-mono">36"×36"×50"</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Tipo de saco</div><div class="text-sm font-semibold text-[#2A2E2B]">U-PANEL</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Cantidad</div><div class="text-sm font-semibold text-[#2A2E2B] font-mono">600 pzas</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Carga</div><div class="text-sm font-semibold text-[#2A2E2B]">2,205 Lbs</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">No. Orden Cliente</div><div class="text-sm font-semibold text-[#2A2E2B] font-mono">POUS-5053</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Embarcar a</div><div class="text-sm font-semibold text-[#2A2E2B]">LAREDO, TX</div></div>
+          <div class="px-4 py-3"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Inicio</div><div class="text-sm font-semibold text-[#2A2E2B]">05 may</div></div>
+        </div>
+        <div class="px-5 py-3 border-t border-[#E8EFE9]">
+          <div class="flex items-center justify-between mb-2"><span class="text-xs font-medium text-[#6B716C]">Avance global de la orden</span><span class="text-sm font-bold text-brand-green">92%</span></div>
+          <div class="h-2.5 bg-[#E8EFE9] rounded-full overflow-hidden"><div class="h-full rounded-full bg-brand-green" style="width:92%"></div></div>
+          <div class="mt-1.5 text-[11px] text-[#8A9A8C]">Frente de trabajo: <span class="font-medium text-[#2A2E2B]">Empaque</span></div>
+        </div>
+      </div>
+
+      <!-- Construcción -->
+      <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[#E8EFE9] bg-brand-green-50"><span>⚙</span><h2 class="text-sm font-semibold text-[#2A2E2B]">Construcción general</h2></div>
+        <div class="p-4 grid grid-cols-3 gap-3">
+          <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Construcción</div><div class="text-sm font-medium text-[#2A2E2B]">U PANEL Tela 6oz UNC BCA</div></div>
+          <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Costuras</div><div class="text-sm font-medium text-[#2A2E2B]">Hacia afuera</div></div>
+          <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Tolerancia</div><div class="text-sm font-medium text-[#2A2E2B]">±1"</div></div>
+          <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Hilo Raw Bag</div><div class="text-sm font-medium text-[#2A2E2B]">4000 Dennier</div></div>
+          <div class="col-span-2"><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Hilo Cuerpo/Tapa</div><div class="text-sm font-medium text-[#2A2E2B]">2000 Dennier</div></div>
+        </div>
+      </div>
+
+      <!-- Válvulas -->
+      <div class="grid grid-cols-2 gap-5">
+        <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[#E8EFE9] bg-brand-green-50"><span>⬆</span><h2 class="text-sm font-semibold text-[#2A2E2B]">Válvula de carga</h2></div>
+          <div class="p-4"><div class="grid grid-cols-2 gap-3">
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Estilo</div><div class="text-sm font-semibold text-brand-green">"O" — 3oz</div></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Diámetro</div><div class="text-sm font-medium text-[#2A2E2B]">13" D</div></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Largo</div><div class="text-sm font-medium text-[#2A2E2B]">24" L</div></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Lay Flat</div><div class="text-sm font-medium text-[#2A2E2B]">20.5"</div></div>
+          </div><ul class="mt-3 space-y-1"><li class="text-xs text-[#6B716C] flex gap-1.5"><span class="text-brand-green">•</span>Doble Roll en boca</li><li class="text-xs text-[#6B716C] flex gap-1.5"><span class="text-brand-green">•</span>Cinta Pollack a 15.5" de la boca</li></ul></div>
+        </div>
+        <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[#E8EFE9] bg-brand-green-50"><span>⬇</span><h2 class="text-sm font-semibold text-[#2A2E2B]">Válvula de descarga</h2></div>
+          <div class="p-4"><div class="grid grid-cols-2 gap-3">
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Estilo</div><div class="text-sm font-semibold text-brand-green">"A" — 3oz</div></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Diámetro</div><div class="text-sm font-medium text-[#2A2E2B]">16" D</div></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Largo</div><div class="text-sm font-medium text-[#2A2E2B]">23" L</div></div>
+            <div><div class="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">Amarre</div><div class="text-sm font-medium text-[#2A2E2B]">Cordel amarillo 13"</div></div>
+          </div><ul class="mt-3 space-y-1"><li class="text-xs text-[#6B716C] flex gap-1.5"><span class="text-brand-green">•</span>Pollack amarilla a 13" de la boca</li><li class="text-xs text-[#6B716C] flex gap-1.5"><span class="text-brand-green">•</span>Costurar cinta en jareta</li></ul></div>
+        </div>
+      </div>
+
+      <!-- Área de corte -->
+      <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[#E8EFE9] bg-brand-green-50"><span>✂</span><h2 class="text-sm font-semibold text-[#2A2E2B]">Área de corte — dimensiones</h2></div>
+        <div class="p-4"><table class="w-full text-sm"><thead><tr class="border-b border-[#E8EFE9]"><th class="text-left text-[11px] uppercase tracking-wide text-[#6B716C] font-medium py-2 pr-4">Componente</th><th class="text-left text-[11px] uppercase tracking-wide text-[#6B716C] font-medium py-2 pr-4">Dimensiones</th><th class="text-left text-[11px] uppercase tracking-wide text-[#6B716C] font-medium py-2">Material</th></tr></thead>
+          <tbody class="divide-y divide-[#F0F5F0]">
+            <tr><td class="py-2.5 pr-4 font-semibold text-[#2A2E2B]">U Panel (Cuerpo)</td><td class="py-2.5 pr-4 font-mono text-brand-green font-medium">141.5" × 43"</td><td class="py-2.5 text-[#6B716C] text-xs">6oz BCA UNC Ancho 43"</td></tr>
+            <tr><td class="py-2.5 pr-4 font-semibold text-[#2A2E2B]">Lateral</td><td class="py-2.5 pr-4 font-mono text-brand-green font-medium">43" × 55.5"</td><td class="py-2.5 text-[#6B716C] text-xs">6oz BCA UNC 43"</td></tr>
+            <tr><td class="py-2.5 pr-4 font-semibold text-[#2A2E2B]">Tapa</td><td class="py-2.5 pr-4 font-mono text-brand-green font-medium">44" × 44"</td><td class="py-2.5 text-[#6B716C] text-xs">3oz BCA CTD 48"</td></tr>
+            <tr><td class="py-2.5 pr-4 font-semibold text-[#2A2E2B]">Válvula de Carga</td><td class="py-2.5 pr-4 font-mono text-brand-green font-medium">46.5" × 28"</td><td class="py-2.5 text-[#6B716C] text-xs">3oz BCA CTD 46"</td></tr>
+            <tr><td class="py-2.5 pr-4 font-semibold text-[#2A2E2B]">Cinturones (×4)</td><td class="py-2.5 pr-4 font-mono text-brand-green font-medium">68"</td><td class="py-2.5 text-[#6B716C] text-xs">Polipropileno 2" Negro, 3500 LB</td></tr>
+            <tr><td class="py-2.5 pr-4 font-semibold text-[#2A2E2B]">Liner FF</td><td class="py-2.5 pr-4 font-mono text-brand-green font-medium">38"×38"×53"</td><td class="py-2.5 text-[#6B716C] text-xs">3MIL Azul</td></tr>
+          </tbody></table></div>
+      </div>
+
+      <!-- Avance por área -->
+      <div class="bg-white border border-[#E2E5E2] rounded-xl shadow-card overflow-hidden">
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[#E8EFE9] bg-brand-green-50"><span>📊</span><h2 class="text-sm font-semibold text-[#2A2E2B]">Avance de producción por área</h2></div>
+        <div class="p-4 grid grid-cols-2 gap-3">
+          <div class="rounded-lg border border-[#E8EFE9] overflow-hidden"><div class="flex items-center justify-between px-3 py-2"><span class="text-xs font-semibold px-2 py-0.5 rounded bg-corte-bg text-corte-text">Corte</span><span class="text-xs font-bold text-[#2A2E2B]">100%</span></div><div class="px-3 pb-2"><div class="h-1.5 bg-[#E8EFE9] rounded-full overflow-hidden"><div class="h-full rounded-full bg-brand-green w-full"></div></div></div></div>
+          <div class="rounded-lg border border-[#E8EFE9] overflow-hidden"><div class="flex items-center justify-between px-3 py-2"><span class="text-xs font-semibold px-2 py-0.5 rounded bg-tapa-bg text-tapa-text">Tapa</span><span class="text-xs font-bold text-[#2A2E2B]">100%</span></div><div class="px-3 pb-2"><div class="h-1.5 bg-[#E8EFE9] rounded-full overflow-hidden"><div class="h-full rounded-full bg-brand-green w-full"></div></div></div></div>
+          <div class="rounded-lg border border-[#E8EFE9] overflow-hidden"><div class="flex items-center justify-between px-3 py-2"><span class="text-xs font-semibold px-2 py-0.5 rounded bg-calidad-bg text-calidad-text">Calidad</span><span class="text-xs font-bold text-[#2A2E2B]">100%</span></div><div class="px-3 pb-2"><div class="h-1.5 bg-[#E8EFE9] rounded-full overflow-hidden"><div class="h-full rounded-full bg-brand-green w-full"></div></div></div></div>
+          <div class="rounded-lg border border-[#E8EFE9] overflow-hidden"><div class="flex items-center justify-between px-3 py-2"><span class="text-xs font-semibold px-2 py-0.5 rounded bg-empaque-bg text-empaque-text">Empaque</span><span class="text-xs font-bold text-[#2A2E2B]">55%</span></div><div class="px-3 pb-2"><div class="h-1.5 bg-[#E8EFE9] rounded-full overflow-hidden"><div class="h-full rounded-full bg-brand-orange" style="width:55%"></div></div></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body></html>
