@@ -14,7 +14,7 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./*"]
     },
     "target": "ES2017"
   },

@@ -2,7 +2,9 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
+    // Módulos de dominio (screaming architecture) + enrutador
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./{autenticacion,ordenes,produccion,explosion-materiales,usuarios,dashboard,compartido}/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {

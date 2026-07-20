@@ -19,11 +19,30 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nombre         TEXT NOT NULL,
   rol            TEXT NOT NULL CHECK (rol IN ('admin', 'diseno', 'supervisor')),
   area_asignada  TEXT,
-  -- Token de la sesión vigente. Cada login genera uno nuevo; los dispositivos
-  -- con un token distinto se cierran solos (una sola sesión activa por usuario).
-  session_token  TEXT
+  -- Sesión única por usuario ("el primero gana"): token de la sesión vigente y
+  -- última señal de vida (heartbeat). El login se rechaza si hay una sesión con
+  -- last_seen reciente en otro dispositivo; al cerrar sesión ambos se limpian.
+  session_token     TEXT,
+  session_last_seen TIMESTAMPTZ
 );
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS session_token TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS session_last_seen TIMESTAMPTZ;
+
+-- ─── Registro maestro de clientes y sus productos (specs) ──────────────────────
+-- Cada cliente tiene 1..N sacos que le desarrollamos; cada saco se identifica
+-- por su spec, que es ÚNICO E IRREPETIBLE en todo el sistema.
+CREATE TABLE IF NOT EXISTS clientes (
+  nombre  TEXT PRIMARY KEY
+);
+-- Unicidad sin distinguir mayúsculas/acentos de dedo ("BULK LIFT" vs "Bulk Lift").
+CREATE UNIQUE INDEX IF NOT EXISTS clientes_nombre_lower ON clientes (LOWER(nombre));
+
+CREATE TABLE IF NOT EXISTS specs (
+  spec     TEXT PRIMARY KEY,
+  cliente  TEXT NOT NULL REFERENCES clientes(nombre) ON UPDATE CASCADE ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS specs_spec_upper ON specs (UPPER(spec));
+CREATE INDEX IF NOT EXISTS specs_cliente ON specs (cliente);
 
 -- ─── Órdenes de producción (carátula + PDF embebido) ────────────────────────────
 CREATE TABLE IF NOT EXISTS ordenes (
@@ -49,12 +68,19 @@ CREATE TABLE IF NOT EXISTS ordenes (
   pdf_data       BYTEA,
   pdf_nombre     TEXT,
   pdf_mime       TEXT DEFAULT 'application/pdf',
-  -- Elementos de corte para la explosión de materiales (ver src/lib/explosion.ts).
-  corte_elementos JSONB
+  -- Elementos de corte para la explosión de materiales (explosion-materiales/).
+  corte_elementos JSONB,
+  -- Firmas reales: quién creó la orden y qué admin la autorizó.
+  elaborado_por      TEXT,
+  autorizado_por     TEXT,
+  fecha_autorizacion TIMESTAMPTZ
 );
 
--- Para bases ya creadas antes de agregar la explosión de materiales (idempotente).
+-- Para bases ya creadas antes de estas columnas (idempotente).
 ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS corte_elementos JSONB;
+ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS elaborado_por TEXT;
+ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS autorizado_por TEXT;
+ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS fecha_autorizacion TIMESTAMPTZ;
 
 -- ─── Avances de producción (por área y componente) ──────────────────────────────
 -- Cada fila es un componente que un supervisor reporta (meta vs. hecho).

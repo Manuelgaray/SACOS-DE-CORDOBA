@@ -5,6 +5,13 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['pdfjs-dist', 'tesseract.js', '@napi-rs/canvas'],
   },
+  // `next lint` solo revisa app/ por defecto; incluimos los módulos de dominio.
+  eslint: {
+    dirs: [
+      'app', 'autenticacion', 'ordenes', 'produccion',
+      'explosion-materiales', 'usuarios', 'dashboard', 'compartido',
+    ],
+  },
 };
 
 module.exports = nextConfig;

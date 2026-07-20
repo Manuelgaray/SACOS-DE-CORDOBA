@@ -31,14 +31,22 @@ node --version
 
 ---
 
-## Base de datos (una sola vez)
+## Instalación desde cero (clon nuevo)
+
+Sigue los pasos **en este orden** (el 1 es requisito de los demás):
+
+### 1. Instalar dependencias
+
+```bash
+cd supersacos-pro
+npm install
+```
+
+### 2. Crear la base de datos y su usuario
 
 La app se conecta con un **usuario dedicado** (`supersacos_app`) a una base de datos
-**`supersacos`**, no con el superusuario `postgres`.
-
-### 1. Crear la base de datos y el usuario
-
-Conéctate como `postgres` (te pedirá su contraseña) y ejecuta:
+**`supersacos`**, no con el superusuario `postgres`. Conéctate como `postgres`
+(te pedirá su contraseña) y ejecuta:
 
 ```sql
 CREATE ROLE supersacos_app LOGIN PASSWORD 'Sacos_app_2026';
@@ -51,39 +59,55 @@ Luego, ya conectado a la base `supersacos` como `postgres`:
 GRANT ALL ON SCHEMA public TO supersacos_app;
 ```
 
-### 2. Configurar `.env.local`
+### 3. Configurar `.env.local`
 
-Crea el archivo `.env.local` en la carpeta `supersacos-pro` con la cadena de conexión
-(usa la misma contraseña que pusiste arriba):
+Copia `.env.example` a `.env.local` y ajusta la contraseña (la que pusiste arriba):
 
 ```
 DATABASE_URL=postgresql://supersacos_app:Sacos_app_2026@localhost:5432/supersacos
 ```
 
-### 3. Crear las tablas y los usuarios
+### 4. Crear las tablas y los usuarios
 
 ```bash
-# Crea las tablas y siembra 2 órdenes de ejemplo
+# Crea todas las tablas (usuarios, clientes, specs, ordenes, avances)
 psql -U supersacos_app -d supersacos -f db/schema.sql
 
 # Siembra los usuarios con contraseña hasheada (lee DATABASE_URL de .env.local)
 node scripts/seed-users.mjs
 ```
 
+> Si la base ya existía de una versión anterior, corre también
+> `node scripts/migrate.mjs` (agrega columnas/tablas nuevas sin borrar datos;
+> en una base recién creada no hace falta, pero no daña).
+
+### 5. Arrancar
+
+```bash
+npm run dev
+```
+
+Abre **http://localhost:3000**. Te redirige a la página de login.
+(Antes de arrancar, `predev` copia solo el visor de PDF a `/public` — automático.)
+
 ---
 
-## Instalación y arranque
+## Llevar tus datos a otra máquina (respaldo/restauración)
 
-1. Abre una terminal en la carpeta `supersacos-pro`.
-2. Instala dependencias:
-   ```bash
-   npm install
-   ```
-3. Arranca el servidor de desarrollo:
-   ```bash
-   npm run dev
-   ```
-4. Abre **http://localhost:3000**. Te redirige a la página de login.
+**Clonar el repositorio NO copia los datos**: las órdenes, clientes, PDFs y avances
+viven en tu PostgreSQL local. Para presentarlos en otra máquina:
+
+```bash
+# En la máquina ORIGEN (respaldar todo, PDFs incluidos):
+pg_dump -U supersacos_app -d supersacos -F c -f supersacos.backup
+
+# En la máquina DESTINO (después de los pasos 1-3 de la instalación,
+# SIN correr schema.sql — el respaldo trae las tablas):
+pg_restore -U supersacos_app -d supersacos supersacos.backup
+```
+
+Copia el archivo `supersacos.backup` por USB o red. Los usuarios y contraseñas
+viajan dentro del respaldo (no hace falta re-sembrarlos).
 
 ---
 
@@ -92,15 +116,21 @@ node scripts/seed-users.mjs
 El login valida las credenciales en el servidor contra la tabla `usuarios` de
 PostgreSQL (contraseñas hasheadas con bcrypt). Cuentas sembradas por defecto:
 
-| Email | Contraseña | Rol | Puede subir órdenes |
+| Email | Contraseña | Rol | Área |
 |---|---|---|---|
-| `manueljgg2004@gmail.com` | `manu` | admin | ✅ |
-| `diseno@sacos.com` | `dise` | diseno (encargado de diseños) | ✅ |
-| `supervisor@sacos.com` | `super` | supervisor | ❌ |
+| `manueljgg2004@gmail.com` | `manu` | admin | — |
+| `diseno@sacos.com` | `dise` | diseno (encargado de diseños) | — |
+| `corte@sacos.com` | `corte` | supervisor | Corte |
+| `small@sacos.com` | `small` | supervisor | Small |
+| `tips@sacos.com` | `tips` | supervisor | Tips |
 
-> ⚠ **Cambia estas contraseñas.** Para agregar, quitar o editar usuarios y roles,
-> edita el arreglo `USUARIOS` en [`scripts/seed-users.mjs`](scripts/seed-users.mjs)
-> y vuelve a correr `node scripts/seed-users.mjs`.
+> ⚠ **Cambia estas contraseñas.** El admin puede crear/editar/eliminar usuarios
+> desde la app (menú **Usuarios**); el seed de `scripts/seed-users.mjs` es solo el
+> arranque inicial o el respaldo si te quedas sin acceso.
+>
+> La sesión es **única por usuario**: si la cuenta ya está activa en otro
+> dispositivo, el login se rechaza hasta cerrar sesión allá (o ~2.5 min si el
+> dispositivo se apagó sin cerrar sesión).
 
 Solo los roles **admin** y **diseno** ven el botón "Nueva orden" y pueden subir PDFs;
 los demás solo consultan y capturan avance.
@@ -121,29 +151,48 @@ En **Órdenes → Nueva orden** (visible solo para admin/diseño):
 
 ## Estructura del proyecto
 
+La organización sigue **Screaming Architecture**: las carpetas de la raíz "gritan"
+lo que hace el sistema (dominios del negocio), no la tecnología. Cada módulo agrupa
+sus pantallas (`ui/`), sus endpoints (`api/`) y su lógica.
+
 ```
 supersacos-pro/
+├── app/                            # ENRUTADOR de Next.js (obligatorio) — stubs de
+│                                   #   1-3 líneas que conectan cada URL con su módulo
+├── autenticacion/                  # Login, sesión única por usuario, roles
+│   ├── ui/login.tsx                #   Pantalla de login
+│   ├── auth.ts                     #   Sesión en el navegador + permisos por rol
+│   ├── auth-server.ts              #   Identidad del usuario en el servidor
+│   └── api/                        #   login, logout, session-check
+├── ordenes/                        # Carátula, PDF embebido, consecutivo, estado
+│   ├── ui/                         #   Lista, detalle y nueva orden
+│   ├── orden-num.ts                #   Número consecutivo SC001-26CD
+│   ├── orden-map.ts               #   Mapeo fila Postgres → tipo Orden
+│   └── api/                        #   crear orden, cambiar estado, servir PDF
+├── produccion/                     # Captura de avance por área, líneas, progreso
+│   ├── ui/                         #   Hub de áreas + captura por área
+│   ├── produccion.ts               #   Plantillas por tipo de saco + motor de avance
+│   ├── produccion-store.tsx        #   Estado global (órdenes + avances)
+│   └── api/                        #   avances (captura), data (carga inicial)
+├── explosion-materiales/           # BOM del área de corte + extracción PDF/OCR
+│   ├── ui/ExplosionMateriales.tsx  #   Tabla editable + resultados por grupo
+│   ├── explosion.ts                #   Cálculo (piezas, longitud lineal)
+│   ├── pdf-corte.ts                #   Extracción de texto/OCR del PDF
+│   └── api/                        #   extraer (con y sin orden), guardar
+├── usuarios/                       # Administración de cuentas + perfil propio
+│   ├── ui/                         #   Panel admin de usuarios + Mi perfil
+│   └── api/                        #   CRUD de usuarios (solo admin), perfil
+├── dashboard/
+│   └── ui/dashboard.tsx            # Resumen general
+├── compartido/                     # Base común a todos los módulos
+│   ├── db.ts                       #   Conexión a PostgreSQL (solo servidor)
+│   ├── mock-data.ts                #   Tipos (Orden, Area...) + etiquetas + fechas
+│   └── ui/                         #   AppShell, Sidebar, TopBar, Modal, Logo...
 ├── db/
-│   └── schema.sql                  # Tablas (usuarios, ordenes, avances) + órdenes demo
+│   └── schema.sql                  # Tablas (usuarios, ordenes, avances)
 ├── scripts/
-│   └── seed-users.mjs              # Siembra usuarios con contraseña hasheada
-├── src/
-│   ├── app/
-│   │   ├── page.tsx                # Redirige a /login
-│   │   ├── login/page.tsx          # Login
-│   │   ├── api/                    # Backend (route handlers que hablan con Postgres)
-│   │   │   ├── login/              # POST: valida credenciales
-│   │   │   ├── data/               # GET: órdenes + avances
-│   │   │   ├── ordenes/            # POST: crear orden; [id]/pdf, [id]/estado
-│   │   │   └── avances/            # POST: capturar avance
-│   │   └── (app)/                  # Rutas protegidas (dashboard, ordenes, produccion)
-│   ├── components/                 # Sidebar, TopBar, MobileNav, AppShell, LogoMark
-│   └── lib/
-│       ├── db.ts                   # Conexión a PostgreSQL (pool de pg, solo servidor)
-│       ├── auth.ts                 # Login (cliente) + roles
-│       ├── orden-map.ts            # Mapeo fila Postgres → tipo Orden
-│       ├── mock-data.ts            # Tipos + helpers
-│       └── produccion.ts           # Motor de avance por área
+│   ├── seed-users.mjs              # Siembra usuarios con contraseña hasheada
+│   └── migrate.mjs                 # Migraciones aditivas de esquema (idempotentes)
 ├── .env.local                      # DATABASE_URL (NO se sube a git)
 ├── package.json
 └── README.md

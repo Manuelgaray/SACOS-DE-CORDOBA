@@ -22,6 +22,9 @@ dist/
 # Datos de idioma de Tesseract (se descargan solos en la primera lectura OCR)
 *.traineddata
 
+# Worker de pdf.js (lo copia scripts/copy-pdf-worker.mjs antes de dev/build)
+public/pdf.worker.min.mjs
+
 # Configuración local de Claude Code (por máquina)
 .claude/settings.local.json
 
