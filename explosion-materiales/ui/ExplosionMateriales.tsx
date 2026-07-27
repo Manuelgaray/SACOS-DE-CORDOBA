@@ -199,7 +199,7 @@ export function ExplosionIntro({ cantidad }: { cantidad: number }) {
 export default function ExplosionMateriales({ orden }: { orden: Orden }) {
   const { sesion } = useSession();
   const editor = canUpload(sesion?.rol);
-  const { setCorteElementos, setAvanceCorte } = useProduccion();
+  const { setCorteElementos, setAvancesOrden } = useProduccion();
 
   const [elementos, setElementos] = useState<ElementoCorte[]>(
     () => orden.corte_elementos ?? (editor ? elementosDesdePlantilla(orden.tipo_saco) : []),
@@ -259,14 +259,14 @@ export default function ExplosionMateriales({ orden }: { orden: Orden }) {
       const guardados = data.elementos as ElementoCorte[];
       setElementos(guardados);
       setCorteElementos(orden.id, guardados);
-      // El servidor re-sincroniza la captura del área de corte con estos
+      // El servidor re-sincroniza la captura de TODAS las áreas con estos
       // elementos; la reflejamos en pantalla sin recargar.
-      if (Array.isArray(data.corte)) {
-        setAvanceCorte(orden.id, data.corte as { nombre: string; meta: number; hecho: number }[]);
+      if (Array.isArray(data.avances)) {
+        setAvancesOrden(orden.id, data.avances);
       }
       setMsg({
         tipo: 'ok',
-        texto: 'Explosión guardada. La captura de Producción → Corte quedó sincronizada con estos elementos.',
+        texto: 'Explosión guardada. Los puntos de reporte de TODAS las áreas quedaron sincronizados con estos elementos.',
       });
     } catch {
       setMsg({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });

@@ -132,14 +132,14 @@ export default function Sidebar({ usuario, email, collapsed = false, onToggle }:
         {!collapsed && prodOpen && (
           <div className="mt-1 ml-3 pl-3 border-l border-white/10 space-y-0.5">
             <Link
-              href="/produccion"
+              href="/produccion/calendario"
               className={`block rounded-md px-3 py-2 text-xs transition-colors ${
-                pathname === '/produccion'
+                pathname === '/produccion/calendario'
                   ? 'bg-white/15 text-white font-medium'
                   : 'text-sidebar-text hover:bg-white/8 hover:text-white'
               }`}
             >
-              Resumen
+              Calendario
             </Link>
             {AREAS_FLOW.map((area) => {
               const isActive = pathname === `/produccion/${area}`;

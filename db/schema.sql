@@ -81,6 +81,219 @@ ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS corte_elementos JSONB;
 ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS elaborado_por TEXT;
 ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS autorizado_por TEXT;
 ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS fecha_autorizacion TIMESTAMPTZ;
+ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS fecha_fin TIMESTAMPTZ;
+
+-- ─── Bitácora de reportes de avance ─────────────────────────────────────────────
+-- Cada renglón es UN reporte de un supervisor: quién, cuándo, en qué orden/área/
+-- componente, el acumulado reportado y el delta contra el reporte anterior.
+-- Alimenta el calendario de producción y el monitoreo de rendimiento.
+CREATE TABLE IF NOT EXISTS reportes (
+  id             BIGSERIAL PRIMARY KEY,
+  orden_id       TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  area           TEXT NOT NULL,
+  comp_idx       INTEGER NOT NULL,
+  nombre         TEXT NOT NULL,
+  hecho          INTEGER NOT NULL,
+  delta          INTEGER NOT NULL,
+  usuario_email  TEXT,
+  usuario_nombre TEXT,
+  creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS reportes_orden ON reportes (orden_id, area, creado_en);
+CREATE INDEX IF NOT EXISTS reportes_fecha ON reportes (creado_en);
+
+-- ─── Hoja de corte (verificación de material) ──────────────────────────────────
+-- Réplica digital de la hoja física del área de corte: un renglón por corrida
+-- (operador, máquina, hora, rollo, elemento, medidas/material/diámetro espec y
+-- real, laminado, piezas cortadas, firma y verificación de contaminación).
+-- Los totales por elemento alimentan el avance de Corte y la bitácora.
+CREATE TABLE IF NOT EXISTS hoja_corte (
+  id            BIGSERIAL PRIMARY KEY,
+  orden_id      TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha         DATE NOT NULL DEFAULT CURRENT_DATE,
+  operador      TEXT NOT NULL DEFAULT '',
+  maquina       TEXT NOT NULL DEFAULT '',
+  hora          TEXT NOT NULL DEFAULT '',
+  rollo         TEXT NOT NULL DEFAULT '',
+  elemento      TEXT NOT NULL DEFAULT '',
+  medida_spec   TEXT NOT NULL DEFAULT '',
+  medida_real   TEXT NOT NULL DEFAULT '',
+  material_spec TEXT NOT NULL DEFAULT '',
+  material_real TEXT NOT NULL DEFAULT '',
+  laminado      BOOLEAN NOT NULL DEFAULT false,
+  diam_spec     TEXT NOT NULL DEFAULT '',
+  diam_real     TEXT NOT NULL DEFAULT '',
+  piezas        INTEGER NOT NULL DEFAULT 0,
+  firma         TEXT NOT NULL DEFAULT '',
+  pc            BOOLEAN NOT NULL DEFAULT false,
+  capturado_por TEXT,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_corte_orden ON hoja_corte (orden_id, fecha, id);
+
+-- ─── Hoja de control de material (Small + Tips, compartida) ────────────────────
+-- Réplica de la hoja física: cada renglón es un material que el supervisor
+-- describe libremente y `entregas` guarda las piezas por fecha
+-- ({"2026-07-07": 350, ...}). Las columnas de fecha y sus firmas viven en
+-- hoja_material_fecha. Los totales alimentan el avance de Small y Tips.
+CREATE TABLE IF NOT EXISTS hoja_material (
+  id          BIGSERIAL PRIMARY KEY,
+  orden_id    TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  descripcion TEXT NOT NULL DEFAULT '',
+  entregas    JSONB NOT NULL DEFAULT '{}'::jsonb,
+  -- El supervisor marca la operación como terminada (meta alcanzada).
+  terminado   BOOLEAN NOT NULL DEFAULT false,
+  creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE hoja_material ADD COLUMN IF NOT EXISTS terminado BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS hoja_material_orden ON hoja_material (orden_id, id);
+
+CREATE TABLE IF NOT EXISTS hoja_material_fecha (
+  orden_id TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha    DATE NOT NULL,
+  entrega  TEXT NOT NULL DEFAULT '',
+  recibe   TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (orden_id, fecha)
+);
+
+-- ─── Hoja de producción de Raw Bag y Tapa (Big + Tapa, compartida) ─────────────
+-- Réplica de la hoja física: un renglón por operador/máquina con la actividad
+-- realizada y su producción en bloques de 2 horas (08, 10, 12, 14). El avance de
+-- estas áreas se mide por operaciones terminadas (columna `terminado`).
+CREATE TABLE IF NOT EXISTS hoja_rawbag (
+  id            BIGSERIAL PRIMARY KEY,
+  orden_id      TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha         DATE NOT NULL DEFAULT CURRENT_DATE,
+  maquina       TEXT NOT NULL DEFAULT '',
+  operador      TEXT NOT NULL DEFAULT '',
+  actividad     TEXT NOT NULL DEFAULT '',
+  p08           INTEGER NOT NULL DEFAULT 0,
+  p10           INTEGER NOT NULL DEFAULT 0,
+  p12           INTEGER NOT NULL DEFAULT 0,
+  p14           INTEGER NOT NULL DEFAULT 0,
+  observaciones TEXT NOT NULL DEFAULT '',
+  terminado     BOOLEAN NOT NULL DEFAULT false,
+  capturado_por TEXT,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_rawbag_orden ON hoja_rawbag (orden_id, fecha, id);
+
+-- Check por ACTIVIDAD de la hoja de Raw Bag: el avance de Big y Tapa se mide por
+-- actividades terminadas (BASE, UNIÓN, TAPA…), sumando todos los días y
+-- operarios; así el número de hojas no altera el cálculo.
+CREATE TABLE IF NOT EXISTS hoja_rawbag_actividad (
+  orden_id  TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  actividad TEXT NOT NULL,
+  terminado BOOLEAN NOT NULL DEFAULT false,
+  PRIMARY KEY (orden_id, actividad)
+);
+
+-- ─── Verificación de área de Raw Bag (solo Big) ────────────────────────────────
+-- Control de calidad por operador (2 revisiones por turno): medidas del saco,
+-- loops, diámetro V.D y material, comparando especificación contra lo real.
+-- Es solo registro: no afecta el avance del área.
+CREATE TABLE IF NOT EXISTS hoja_verif_rawbag (
+  id       BIGSERIAL PRIMARY KEY,
+  orden_id    TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha    DATE NOT NULL DEFAULT CURRENT_DATE,
+  operador    TEXT NOT NULL DEFAULT '',
+  hora     TEXT NOT NULL DEFAULT '',
+  puntadas    TEXT NOT NULL DEFAULT '',
+  hilos    TEXT NOT NULL DEFAULT '',
+  medida_spec    TEXT NOT NULL DEFAULT '',
+  medida_real    TEXT NOT NULL DEFAULT '',
+  loop_libre_spec  TEXT NOT NULL DEFAULT '',
+  loop_traslape_spec  TEXT NOT NULL DEFAULT '',
+  loop_costurado_spec TEXT NOT NULL DEFAULT '',
+  loop_color_spec  TEXT NOT NULL DEFAULT '',
+  loop_libre_real  TEXT NOT NULL DEFAULT '',
+  loop_traslape_real  TEXT NOT NULL DEFAULT '',
+  loop_costurado_real TEXT NOT NULL DEFAULT '',
+  loop_color_real  TEXT NOT NULL DEFAULT '',
+  diam_spec   TEXT NOT NULL DEFAULT '',
+  diam_real   TEXT NOT NULL DEFAULT '',
+  material_spec  TEXT NOT NULL DEFAULT '',
+  material_real  TEXT NOT NULL DEFAULT '',
+  filler1     BOOLEAN NOT NULL DEFAULT false,
+  filler2     BOOLEAN NOT NULL DEFAULT false,
+  folt     BOOLEAN NOT NULL DEFAULT false,
+  pc       BOOLEAN NOT NULL DEFAULT false,
+  observaciones  TEXT NOT NULL DEFAULT '',
+  capturado_por  TEXT,
+  creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_verif_rawbag_orden ON hoja_verif_rawbag (orden_id, fecha, id);
+
+-- ─── Control de mesas de calidad (Calidad) ─────────────────────────────────────
+-- Una fila por HOJA física (día + turno). Cada hoja trae 4 mesas de 2 personas
+-- y el conteo de sacos revisados por mesa (la retícula de 1 a 175 del papel).
+-- Una mesa solo cuenta cuando está ACTIVA, y solo se puede activar con sus dos
+-- operadores registrados. El avance del área es la suma de las mesas activas de
+-- todas las hojas contra los sacos de la orden.
+CREATE TABLE IF NOT EXISTS hoja_calidad (
+  id            BIGSERIAL PRIMARY KEY,
+  orden_id      TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha         DATE NOT NULL DEFAULT CURRENT_DATE,
+  turno         TEXT NOT NULL DEFAULT '',
+  supervisor    TEXT NOT NULL DEFAULT '',
+  observaciones TEXT NOT NULL DEFAULT '',
+  m1_op1        TEXT NOT NULL DEFAULT '',
+  m1_op2        TEXT NOT NULL DEFAULT '',
+  m1_activa     BOOLEAN NOT NULL DEFAULT false,
+  m1_total      INTEGER NOT NULL DEFAULT 0,
+  m2_op1        TEXT NOT NULL DEFAULT '',
+  m2_op2        TEXT NOT NULL DEFAULT '',
+  m2_activa     BOOLEAN NOT NULL DEFAULT false,
+  m2_total      INTEGER NOT NULL DEFAULT 0,
+  m3_op1        TEXT NOT NULL DEFAULT '',
+  m3_op2        TEXT NOT NULL DEFAULT '',
+  m3_activa     BOOLEAN NOT NULL DEFAULT false,
+  m3_total      INTEGER NOT NULL DEFAULT 0,
+  m4_op1        TEXT NOT NULL DEFAULT '',
+  m4_op2        TEXT NOT NULL DEFAULT '',
+  m4_activa     BOOLEAN NOT NULL DEFAULT false,
+  m4_total      INTEGER NOT NULL DEFAULT 0,
+  capturado_por TEXT,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_calidad_orden ON hoja_calidad (orden_id, fecha, id);
+
+-- ─── Defectos y hallazgos en proceso (Calidad) ─────────────────────────────────
+-- Un renglón por saco con hallazgo: mesa, etiqueta, máquina, operador, tipo de
+-- defecto (catálogo PS, MP, HD…) y si se aprobó o se rechazó.
+-- Es solo registro: no afecta el avance del área.
+CREATE TABLE IF NOT EXISTS hoja_defectos (
+  id            BIGSERIAL PRIMARY KEY,
+  orden_id      TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha         DATE NOT NULL DEFAULT CURRENT_DATE,
+  turno         TEXT NOT NULL DEFAULT '',
+  mesa          TEXT NOT NULL DEFAULT '',
+  etiqueta      TEXT NOT NULL DEFAULT '',
+  maquina       TEXT NOT NULL DEFAULT '',
+  operador      TEXT NOT NULL DEFAULT '',
+  defecto       TEXT NOT NULL DEFAULT '',
+  resultado     TEXT NOT NULL DEFAULT '',
+  capturado_por TEXT,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_defectos_orden ON hoja_defectos (orden_id, fecha, id);
+
+-- ─── Control de tarimas y sacos en prensa (Empaque) ────────────────────────────
+-- Una fila por TARIMA: su fecha, número consecutivo, el conteo de sacos
+-- prensados (la retícula de 1 a 200 del papel) y el peso en libras.
+-- El avance del área es la suma de todas las tarimas contra los sacos de la orden.
+CREATE TABLE IF NOT EXISTS hoja_empaque (
+  id            BIGSERIAL PRIMARY KEY,
+  orden_id      TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  numero        INTEGER NOT NULL DEFAULT 1,
+  fecha         DATE NOT NULL DEFAULT CURRENT_DATE,
+  turno         TEXT NOT NULL DEFAULT '',
+  contados      INTEGER NOT NULL DEFAULT 0,
+  peso          INTEGER NOT NULL DEFAULT 0,
+  capturado_por TEXT,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_empaque_orden ON hoja_empaque (orden_id, numero, id);
 
 -- ─── Avances de producción (por área y componente) ──────────────────────────────
 -- Cada fila es un componente que un supervisor reporta (meta vs. hecho).

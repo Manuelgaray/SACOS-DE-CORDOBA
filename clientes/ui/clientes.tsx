@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, canUpload } from '@/autenticacion/auth';
 import { Modal, ConfirmModal } from '@/compartido/ui/Modal';
+import PdfViewer from '@/compartido/ui/PdfViewer';
 
 interface Cliente {
   nombre: string;
@@ -35,6 +36,8 @@ export default function ClientesPage() {
   const [aEliminar, setAEliminar] = useState<Cliente | null>(null);
   const [specAEliminar, setSpecAEliminar] = useState<{ cliente: string; spec: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  // Visor de PDF del spec (dentro de la app: el PDF es dato sensible).
+  const [pdfVer, setPdfVer] = useState<{ spec: string; url: string } | null>(null);
 
   useEffect(() => {
     if (ready && !permitido) router.replace('/dashboard');
@@ -132,7 +135,8 @@ export default function ClientesPage() {
     return null;
   }
 
-  // Abre el PDF de la última orden del spec (en pestaña nueva).
+  // Abre el PDF de la última orden del spec en un visor DENTRO de la app
+  // (sin pestaña nueva ni descarga: el diseño es información sensible).
   async function verPdf(spec: string) {
     setMsg(null);
     try {
@@ -140,7 +144,7 @@ export default function ClientesPage() {
       const data = await res.json().catch(() => ({}));
       const pdfUrl = data?.orden?.pdf_url as string | undefined;
       if (res.ok && pdfUrl) {
-        window.open(pdfUrl, '_blank', 'noopener');
+        setPdfVer({ spec, url: pdfUrl });
       } else {
         setMsg({ tipo: 'error', texto: `El spec ${spec} aún no tiene órdenes con PDF.` });
       }
@@ -261,6 +265,16 @@ export default function ClientesPage() {
         )}{' '}
         Las órdenes ya creadas no se modifican.
       </ConfirmModal>
+
+      {/* Visor del PDF del spec (solo dentro de la app) */}
+      <Modal
+        open={!!pdfVer}
+        onClose={() => setPdfVer(null)}
+        title={`Diseño · ${pdfVer?.spec ?? ''}`}
+        size="lg"
+      >
+        {pdfVer && <PdfViewer url={pdfVer.url} />}
+      </Modal>
 
       {/* Eliminar spec */}
       <ConfirmModal

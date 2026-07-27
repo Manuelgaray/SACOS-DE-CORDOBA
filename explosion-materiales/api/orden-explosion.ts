@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
 import { normalizarElementos } from '@/explosion-materiales/explosion';
+import { metasDeArea, type AvanceArea } from '@/produccion/produccion';
+import { AREAS_FLOW } from '@/compartido/mock-data';
 
 export const runtime = 'nodejs';
 
@@ -11,9 +13,10 @@ async function rolDe(email: string): Promise<string | undefined> {
 }
 
 // PUT /api/ordenes/[id]/explosion — guarda los elementos de corte (columna JSONB)
-// y SINCRONIZA la captura del área de corte: lo que la orden lleva según la
-// explosión (laterales, base, válvulas, cintas…) es lo que aparece para capturar
-// en Producción → Corte. El avance ya reportado se conserva por nombre.
+// y SINCRONIZA la captura de TODAS las áreas: lo que la orden lleva según la
+// explosión define qué reporta almacén (materiales), corte (piezas), small
+// (dobladillos), tips (costuras/ensambles), big (uniones) y tapa (cierre).
+// El avance ya reportado se conserva emparejando por nombre del punto.
 // Solo admin/diseño pueden editar; el header `x-user-email` identifica al usuario.
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
@@ -34,39 +37,48 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   const elementos = normalizarElementos(body.elementos);
 
-  const { rows: upd } = await query<{ cantidad: number }>(
-    'UPDATE ordenes SET corte_elementos = $2::jsonb WHERE id = $1 RETURNING cantidad',
+  const { rows: upd } = await query<{ cantidad: number; tipo_saco: string }>(
+    'UPDATE ordenes SET corte_elementos = $2::jsonb WHERE id = $1 RETURNING cantidad, tipo_saco',
     [params.id, JSON.stringify(elementos)],
   );
   if (upd.length === 0) {
     return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
   }
-  const cantidad = Number(upd[0].cantidad) || 0;
 
-  // ── Sincronizar el área de corte con la explosión ──────────────────────────
-  // Conservamos el "hecho" ya capturado emparejando por nombre; los elementos
-  // eliminados de la explosión desaparecen de la captura y los nuevos entran en 0.
-  const { rows: previos } = await query<{ nombre: string; hecho: number }>(
-    `SELECT nombre, hecho FROM avances WHERE orden_id = $1 AND area = 'corte'`,
+  const ordenBase = {
+    cantidad: Number(upd[0].cantidad) || 0,
+    tipo_saco: upd[0].tipo_saco,
+    corte_elementos: elementos,
+  };
+
+  // ── Re-sincronizar TODAS las áreas con la explosión ────────────────────────
+  // Conservamos el "hecho" ya capturado emparejando por (área, nombre); los
+  // puntos eliminados desaparecen y los nuevos entran en 0.
+  const { rows: previos } = await query<{ area: string; nombre: string; hecho: number }>(
+    'SELECT area, nombre, hecho FROM avances WHERE orden_id = $1',
     [params.id],
   );
-  const hechoPorNombre = new Map(previos.map((r) => [r.nombre, Number(r.hecho)]));
+  const hechoPor = new Map(previos.map((r) => [`${r.area}|${r.nombre}`, Number(r.hecho)]));
 
-  await query(`DELETE FROM avances WHERE orden_id = $1 AND area = 'corte'`, [params.id]);
+  await query('DELETE FROM avances WHERE orden_id = $1', [params.id]);
 
-  const validos = elementos.filter((e) => e.nombre.trim() !== '' && e.piezasPorSaco > 0);
-  const corte: { nombre: string; meta: number; hecho: number }[] = [];
-  for (let i = 0; i < validos.length; i++) {
-    const e = validos[i];
-    const meta = e.piezasPorSaco * cantidad;
-    const hecho = Math.min(hechoPorNombre.get(e.nombre) ?? 0, meta);
-    await query(
-      `INSERT INTO avances (orden_id, area, comp_idx, nombre, meta, hecho)
-       VALUES ($1, 'corte', $2, $3, $4, $5)`,
-      [params.id, i, e.nombre, meta, hecho],
-    );
-    corte.push({ nombre: e.nombre, meta, hecho });
+  const avances: AvanceArea[] = [];
+  for (const area of AREAS_FLOW) {
+    const metas = metasDeArea(ordenBase, area);
+    if (metas.length === 0) continue; // área sin puntos para esta orden
+    const componentes = [];
+    for (let i = 0; i < metas.length; i++) {
+      const m = metas[i];
+      const hecho = Math.min(hechoPor.get(`${area}|${m.nombre}`) ?? 0, m.meta);
+      await query(
+        `INSERT INTO avances (orden_id, area, comp_idx, nombre, meta, hecho)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [params.id, area, i, m.nombre, m.meta, hecho],
+      );
+      componentes.push({ nombre: m.nombre, meta: m.meta, hecho });
+    }
+    avances.push({ area, componentes });
   }
 
-  return NextResponse.json({ ok: true, elementos, corte });
+  return NextResponse.json({ ok: true, elementos, avances });
 }

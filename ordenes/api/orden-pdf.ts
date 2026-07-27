@@ -1,10 +1,17 @@
 import { query } from '@/compartido/db';
+import { actorDe } from '@/autenticacion/auth-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // GET /api/ordenes/[id]/pdf — sirve el PDF guardado en la columna bytea.
+// El diseño es información sensible: SOLO usuarios autenticados (el visor de la
+// app manda el header x-user-email); la URL directa sin sesión responde 401.
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const actor = await actorDe(_req);
+  if (!actor) {
+    return new Response('No autenticado', { status: 401 });
+  }
   const { rows } = await query<{ pdf_data: Buffer | null; pdf_mime: string | null; pdf_nombre: string | null }>(
     'SELECT pdf_data, pdf_mime, pdf_nombre FROM ordenes WHERE id = $1',
     [params.id],

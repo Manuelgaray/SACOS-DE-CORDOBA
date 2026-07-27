@@ -1,14 +1,28 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AREAS_FLOW, AREA_LABELS, AREA_COLORS, type OrderStatus } from '@/compartido/mock-data';
 import { useProduccion } from '@/produccion/produccion-store';
 import { progresoArea } from '@/produccion/produccion';
 
 export default function ProduccionHubPage() {
+  const router = useRouter();
   const { ordenes, avances, estados, ready } = useProduccion();
 
-  if (!ready) return <Cargando />;
+  // Esta página de tarjetas existe SOLO en móvil (ahí es el selector de áreas).
+  // En escritorio el menú lateral ya lista las áreas, así que redirigimos al
+  // calendario de producción.
+  const [esEscritorio, setEsEscritorio] = useState<boolean | null>(null);
+  useEffect(() => {
+    setEsEscritorio(window.matchMedia('(min-width: 1024px)').matches);
+  }, []);
+  useEffect(() => {
+    if (esEscritorio) router.replace('/produccion/calendario');
+  }, [esEscritorio, router]);
+
+  if (!ready || esEscritorio !== false) return <Cargando />;
 
   const estadoDe = (id: string): OrderStatus => estados[id] ?? ordenes.find(o => o.id === id)!.status;
   const enProduccion = ordenes.filter(o => ['activa', 'pausada'].includes(estadoDe(o.id)));
@@ -28,11 +42,19 @@ export default function ProduccionHubPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-xl lg:text-2xl font-semibold text-[#1A1A1A] mb-0.5">Producción por área</h1>
-        <p className="text-sm text-[#6B716C]">
-          Selecciona tu área para capturar el avance del turno
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl lg:text-2xl font-semibold text-[#1A1A1A] mb-0.5">Producción por área</h1>
+          <p className="text-sm text-[#6B716C]">
+            Selecciona tu área para capturar el avance del turno
+          </p>
+        </div>
+        <Link
+          href="/produccion/calendario"
+          className="flex items-center gap-1.5 text-xs font-medium text-[#1A1A1A] border border-brand-green/30 hover:bg-brand-green-50 rounded-lg px-3 py-2 transition-colors"
+        >
+          Calendario de producción
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

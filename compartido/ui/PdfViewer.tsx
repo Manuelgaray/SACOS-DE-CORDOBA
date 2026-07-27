@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from 'react';
+import { getSession } from '@/autenticacion/auth';
 
 const MAX_PAGINAS = 12; // suficiente para planos/órdenes; evita PDFs enormes
 
@@ -28,7 +29,12 @@ export default function PdfViewer({ url }: { url: string }) {
         // versión siempre coincida con la del paquete instalado).
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-        const doc = await pdfjs.getDocument(url).promise;
+        // El endpoint del PDF exige usuario autenticado (dato sensible):
+        // mandamos la identidad de la sesión en el header.
+        const doc = await pdfjs.getDocument({
+          url,
+          httpHeaders: { 'x-user-email': getSession()?.email ?? '' },
+        }).promise;
         if (cancelado) return;
 
         const cont = contRef.current;
@@ -85,10 +91,7 @@ export default function PdfViewer({ url }: { url: string }) {
       )}
       {estado === 'error' && (
         <p className="text-sm text-[#6B716C] py-4">
-          No se pudo mostrar el PDF aquí.{' '}
-          <a href={url} target="_blank" rel="noopener noreferrer" className="underline text-[#1A1A1A]">
-            Ábrelo en una pestaña nueva.
-          </a>
+          No se pudo mostrar el PDF. Verifica tu sesión e intenta recargar la página.
         </p>
       )}
       <div ref={contRef} />

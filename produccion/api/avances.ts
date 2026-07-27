@@ -1,21 +1,28 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
+import { cerrarOrdenSiCompleta } from '@/produccion/api/cierre-automatico';
 
 export const runtime = 'nodejs';
 
-async function usuarioDe(email: string): Promise<{ rol: string; area_asignada: string | null } | undefined> {
+// Ventana de fusión de la bitácora: capturas seguidas del mismo usuario sobre el
+// mismo componente (< 10 min) se consolidan en UN solo reporte, para que "el
+// reporte de las 8:00" sea un renglón aunque haya tecleado varios números.
+const VENTANA_FUSION_MIN = 10;
+
+async function usuarioDe(email: string) {
   if (!email) return undefined;
-  const { rows } = await query<{ rol: string; area_asignada: string | null }>(
-    'SELECT rol, area_asignada FROM usuarios WHERE email = $1',
-    [email],
-  );
+  const { rows } = await query<{
+    email: string;
+    nombre: string;
+    rol: string;
+    area_asignada: string | null;
+  }>('SELECT email, nombre, rol, area_asignada FROM usuarios WHERE email = $1', [email]);
   return rows[0];
 }
 
 // POST /api/avances — reporta el "hecho" de un componente (captura de producción).
-// La captura está gateada por perfil: admin (todas las áreas), supervisor (solo su
-// área asignada); diseño es solo lectura. El header `x-user-email` identifica al
-// usuario (mismo patrón que la ruta de explosión).
+// Además de actualizar el acumulado, registra el reporte en la BITÁCORA con
+// fecha, hora, usuario y delta — la materia prima del calendario de producción.
 export async function POST(req: Request) {
   let body: { ordenId?: string; area?: string; compIdx?: number; valor?: number };
   try {
@@ -70,20 +77,56 @@ export async function POST(req: Request) {
     );
   }
 
-  const valor = Math.round(Number(body.valor) || 0);
-
-  // Clamp a [0, meta] usando la meta de la propia fila.
-  const { rows } = await query<{ hecho: number }>(
-    `UPDATE avances
-        SET hecho = LEAST(meta, GREATEST(0, $4::int))
-      WHERE orden_id = $1 AND area = $2 AND comp_idx = $3
-      RETURNING hecho`,
-    [ordenId, area, compIdx, valor],
+  // ── Actualizar el acumulado ───────────────────────────────────────────────
+  const { rows: compRows } = await query<{ nombre: string; meta: number; hecho: number }>(
+    'SELECT nombre, meta, hecho FROM avances WHERE orden_id = $1 AND area = $2 AND comp_idx = $3',
+    [ordenId, area, compIdx],
   );
-
-  if (rows.length === 0) {
+  const comp = compRows[0];
+  if (!comp) {
     return NextResponse.json({ error: 'Componente no encontrado' }, { status: 404 });
   }
 
-  return NextResponse.json({ hecho: Number(rows[0].hecho) });
+  const previo = Number(comp.hecho);
+  const meta = Number(comp.meta);
+  const nuevo = Math.min(meta, Math.max(0, Math.round(Number(body.valor) || 0)));
+
+  let cierre = { ordenTerminada: false, fechaFin: null as string | null };
+
+  if (nuevo !== previo) {
+    await query(
+      'UPDATE avances SET hecho = $4 WHERE orden_id = $1 AND area = $2 AND comp_idx = $3',
+      [ordenId, area, compIdx, nuevo],
+    );
+
+    // ── Bitácora (con ventana de fusión) ───────────────────────────────────
+    const { rows: ult } = await query<{ id: string; delta: number }>(
+      `SELECT id, delta FROM reportes
+        WHERE orden_id = $1 AND area = $2 AND comp_idx = $3 AND usuario_email = $4
+          AND creado_en > NOW() - ($5 || ' minutes')::interval
+        ORDER BY creado_en DESC
+        LIMIT 1`,
+      [ordenId, area, compIdx, usuario.email, VENTANA_FUSION_MIN],
+    );
+
+    const delta = nuevo - previo;
+    if (ult.length > 0) {
+      await query(
+        'UPDATE reportes SET hecho = $2, delta = delta + $3 WHERE id = $1',
+        [ult[0].id, nuevo, delta],
+      );
+    } else {
+      await query(
+        `INSERT INTO reportes (orden_id, area, comp_idx, nombre, hecho, delta, usuario_email, usuario_nombre)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [ordenId, area, compIdx, comp.nombre, nuevo, delta, usuario.email, usuario.nombre],
+      );
+    }
+
+    // Si con esta captura TODAS las áreas quedaron al 100 %, la orden se cierra
+    // sola (sin necesidad de un admin conectado).
+    cierre = await cerrarOrdenSiCompleta(ordenId);
+  }
+
+  return NextResponse.json({ hecho: nuevo, ...cierre });
 }

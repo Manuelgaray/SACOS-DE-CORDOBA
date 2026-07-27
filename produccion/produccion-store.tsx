@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { type Orden, type OrderStatus, type ElementoCorte } from '@/compartido/mock-data';
-import { type AvanceArea, type ComponenteProduccion } from '@/produccion/produccion';
+import { type AvanceArea } from '@/produccion/produccion';
 import { getSession } from '@/autenticacion/auth';
 
 interface Ctx {
@@ -14,7 +14,7 @@ interface Ctx {
   setEstado: (ordenId: string, estado: OrderStatus) => void;
   addOrden: (orden: Orden, avances: AvanceArea[]) => void;
   setCorteElementos: (ordenId: string, elementos: ElementoCorte[]) => void;
-  setAvanceCorte: (ordenId: string, componentes: ComponenteProduccion[]) => void;
+  setAvancesOrden: (ordenId: string, avances: AvanceArea[]) => void;
   patchOrden: (ordenId: string, patch: Partial<Orden>) => void;
 }
 
@@ -48,8 +48,14 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
+  // Debounce por componente: la pantalla se actualiza al instante, pero el POST
+  // (y por tanto el renglón en la bitácora de reportes) se manda hasta que el
+  // supervisor deja de teclear ~0.8 s — así no se genera un reporte por tecla.
+  const timersHecho = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
   const setHecho = useCallback((ordenId: string, area: string, compIdx: number, valor: number) => {
-    // Update optimista en pantalla...
+    // Update optimista en pantalla (incluye la marca del último reporte)...
+    const sesion = getSession();
     setAvances(prev => {
       const arr = prev[ordenId];
       if (!arr) return prev;
@@ -57,6 +63,7 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
         if (av.area !== area) return av;
         return {
           ...av,
+          ultimoReporte: { fecha: new Date().toISOString(), usuario: sesion?.nombre ?? null },
           componentes: av.componentes.map((c, i) => {
             if (i !== compIdx) return c;
             const v = Math.max(0, Math.min(c.meta, Math.round(valor || 0)));
@@ -66,16 +73,42 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
       });
       return { ...prev, [ordenId]: next };
     });
-    // ...y persistir en la base de datos. El header identifica al usuario para que
-    // el servidor valide el permiso de captura por área (defensa en profundidad).
-    fetch('/api/avances', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-email': getSession()?.email ?? '',
-      },
-      body: JSON.stringify({ ordenId, area, compIdx, valor }),
-    }).catch(e => console.error('No se pudo guardar el avance:', e));
+
+    // ...y persistir en la base (con debounce). El header identifica al usuario
+    // para validar permisos y firmar el reporte en la bitácora.
+    const clave = `${ordenId}|${area}|${compIdx}`;
+    const previo = timersHecho.current.get(clave);
+    if (previo) clearTimeout(previo);
+    timersHecho.current.set(
+      clave,
+      setTimeout(() => {
+        timersHecho.current.delete(clave);
+        fetch('/api/avances', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-email': getSession()?.email ?? '',
+          },
+          body: JSON.stringify({ ordenId, area, compIdx, valor }),
+          keepalive: true,
+        })
+          .then(res => res.json().catch(() => ({})).then(data => {
+            if (!res.ok) {
+              console.error('Captura rechazada:', data?.error ?? res.status);
+              return;
+            }
+            // El servidor cierra la orden sola si todas las áreas llegaron al
+            // 100 %: lo reflejamos en pantalla sin recargar.
+            if (data?.ordenTerminada) {
+              setOrdenes(prev => prev.map(o => (o.id === ordenId
+                ? { ...o, status: 'terminada' as OrderStatus, fecha_fin: data.fechaFin ?? o.fecha_fin }
+                : o)));
+              setEstados(prev => ({ ...prev, [ordenId]: 'terminada' }));
+            }
+          }))
+          .catch(e => console.error('No se pudo guardar el avance:', e));
+      }, 800),
+    );
   }, []);
 
   const setEstado = useCallback((ordenId: string, estado: OrderStatus) => {
@@ -99,8 +132,14 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
       body: JSON.stringify({ estado }),
     })
       .then(async res => {
-        if (res.ok) return;
         const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          // El servidor fija las fechas reales de inicio/fin (calendario).
+          setOrdenes(prev => prev.map(o => (o.id === ordenId
+            ? { ...o, fecha_inicio: data.fecha_inicio ?? o.fecha_inicio, fecha_fin: data.fecha_fin ?? null }
+            : o)));
+          return;
+        }
         console.error('Cambio de estado rechazado:', data?.error ?? res.status);
         if (previo !== undefined) {
           const anterior = previo;
@@ -111,9 +150,16 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
       .catch(e => console.error('No se pudo guardar el estado:', e));
   }, []);
 
-  // Actualiza campos sueltos de una orden en pantalla (p. ej. tras autorizarla).
+  // Actualiza campos sueltos de una orden en pantalla (p. ej. tras autorizarla
+  // o cuando el servidor la cierra sola al completarse todas las áreas).
   const patchOrden = useCallback((ordenId: string, patch: Partial<Orden>) => {
     setOrdenes(prev => prev.map(o => (o.id === ordenId ? { ...o, ...patch } : o)));
+    // El mapa `estados` es el override local del status: si el patch trae uno
+    // nuevo, hay que actualizarlo también para no mostrar el anterior.
+    if (patch.status) {
+      const s = patch.status;
+      setEstados(prev => ({ ...prev, [ordenId]: s }));
+    }
   }, []);
 
   // La orden ya fue creada en el servidor; aquí solo la reflejamos en pantalla.
@@ -127,21 +173,14 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
     setOrdenes(prev => prev.map(o => (o.id === ordenId ? { ...o, corte_elementos: elementos } : o)));
   }, []);
 
-  // Refleja la captura de Corte re-sincronizada por el servidor al guardar la
-  // explosión (los elementos de la orden SON lo que se captura en Corte).
-  const setAvanceCorte = useCallback((ordenId: string, componentes: ComponenteProduccion[]) => {
-    setAvances(prev => {
-      const arr = prev[ordenId];
-      if (!arr) return prev;
-      return {
-        ...prev,
-        [ordenId]: arr.map(av => (av.area === 'corte' ? { ...av, componentes } : av)),
-      };
-    });
+  // Refleja los avances re-sincronizados por el servidor al guardar la
+  // explosión: TODAS las áreas derivan sus puntos de los elementos de la orden.
+  const setAvancesOrden = useCallback((ordenId: string, avancesOrden: AvanceArea[]) => {
+    setAvances(prev => ({ ...prev, [ordenId]: avancesOrden }));
   }, []);
 
   return (
-    <ProduccionContext.Provider value={{ ordenes, avances, estados, ready, setHecho, setEstado, addOrden, setCorteElementos, setAvanceCorte, patchOrden }}>
+    <ProduccionContext.Provider value={{ ordenes, avances, estados, ready, setHecho, setEstado, addOrden, setCorteElementos, setAvancesOrden, patchOrden }}>
       {children}
     </ProduccionContext.Provider>
   );

@@ -25,6 +25,7 @@ export interface OrdenRow {
   fecha_creacion: Date | string;
   fecha_inicio: Date | string | null;
   fecha_entrega: string | null; // se selecciona como ::text → 'YYYY-MM-DD'
+  fecha_fin: Date | string | null;
   has_pdf: boolean;
   corte_elementos: unknown; // JSONB → arreglo de ElementoCorte (o null)
   elaborado_por: string | null;
@@ -56,6 +57,7 @@ export function rowToOrden(r: OrdenRow): Orden {
     fecha_creacion: toIso(r.fecha_creacion) ?? '',
     fecha_inicio: toIso(r.fecha_inicio),
     fecha_entrega: r.fecha_entrega,
+    fecha_fin: toIso(r.fecha_fin),
     pdf_url: r.has_pdf ? `/api/ordenes/${r.id}/pdf` : null,
     corte_elementos: r.corte_elementos == null ? null : normalizarElementos(r.corte_elementos),
     elaborado_por: r.elaborado_por ?? null,
@@ -68,7 +70,7 @@ export function rowToOrden(r: OrdenRow): Orden {
 export const ORDEN_COLS = `
   id, numero_orden, cliente, spec, medida, cantidad, carga_lbs, tipo_saco,
   orden_cliente, embarcar_a, grado, area_actual, status, linea,
-  fecha_creacion, fecha_inicio, fecha_entrega::text AS fecha_entrega,
+  fecha_creacion, fecha_inicio, fecha_entrega::text AS fecha_entrega, fecha_fin,
   (pdf_data IS NOT NULL) AS has_pdf,
   corte_elementos, elaborado_por, autorizado_por, fecha_autorizacion
 `;

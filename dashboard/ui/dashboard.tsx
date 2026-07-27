@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { AREA_LABELS, AREA_COLORS, formatDateShort, type OrderStatus } from '@/compartido/mock-data';
 import { useProduccion } from '@/produccion/produccion-store';
-import { progresoOrden, areaEnCurso } from '@/produccion/produccion';
+import { progresoOrden, areaEnCurso, rutaHojaDeArea } from '@/produccion/produccion';
 import { useSession } from '@/autenticacion/auth';
 
 const ESTADO_OPCIONES: { v: OrderStatus; label: string }[] = [
@@ -26,10 +26,11 @@ export default function DashboardPage() {
 
   const hoy = new Date();
 
+  // Posición FIJA: recientes arriba, viejas abajo — no se reordenan al capturar.
   const ordenesLinea = (linea: 1 | 2) =>
     ordenes
       .filter(o => o.linea === linea && ['activa', 'pausada'].includes(estadoDe(o.id)))
-      .sort((a, b) => progDe(b.id) - progDe(a.id));
+      .sort((a, b) => b.fecha_creacion.localeCompare(a.fecha_creacion));
 
   const colaLinea = (linea: 1 | 2) =>
     ordenes.filter(o => o.linea === linea && estadoDe(o.id) === 'programada');
@@ -90,7 +91,11 @@ export default function DashboardPage() {
 
                     <div className="flex items-center justify-between mt-1.5">
                       {enCurso ? (
-                        <Link href={`/produccion/${enCurso}`} className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${areaC!.bg} ${areaC!.text} hover:opacity-80`}>
+                        <Link
+                          // Se entra con esta orden ya elegida (hoja o área enfocada).
+                          href={rutaHojaDeArea(enCurso, orden.id) ?? `/produccion/${enCurso}?orden=${orden.id}`}
+                          className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${areaC!.bg} ${areaC!.text} hover:opacity-80`}
+                        >
                           En {AREA_LABELS[enCurso]}
                         </Link>
                       ) : (

@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AREA_LABELS, AREA_COLORS, formatDate, formatDateShort, type OrderStatus } from '@/compartido/mock-data';
+import { AREA_LABELS, AREA_COLORS, formatDate, formatDateShort, formatFechaHora, type OrderStatus } from '@/compartido/mock-data';
 import { useProduccion } from '@/produccion/produccion-store';
-import { progresoArea, progresoComponente, progresoOrden, areaEnCurso } from '@/produccion/produccion';
+import { progresoArea, progresoComponente, progresoOrden, areaEnCurso, rutaHojaDeArea } from '@/produccion/produccion';
 import { useSession } from '@/autenticacion/auth';
 import { ConfirmModal } from '@/compartido/ui/Modal';
 import ExplosionMateriales from '@/explosion-materiales/ui/ExplosionMateriales';
@@ -221,7 +221,9 @@ export default function OrdenDetallePage({ params }: { params: { id: string } })
             return (
               <Link
                 key={av.area}
-                href={`/produccion/${av.area}`}
+                // Se entra con la orden ya elegida: las áreas que capturan en
+                // hoja la abren directo; las demás quedan enfocadas en esta orden.
+                href={rutaHojaDeArea(av.area, orden.id) ?? `/produccion/${av.area}?orden=${orden.id}`}
                 className="block rounded-lg border border-[#E8EFE9] hover:border-brand-green/30 hover:shadow-sm transition-all overflow-hidden"
               >
                 <div className="flex items-center justify-between px-3 py-2">
@@ -242,6 +244,12 @@ export default function OrdenDetallePage({ params }: { params: { id: string } })
                       </span>
                     ))}
                   </div>
+                  {av.ultimoReporte && (
+                    <div className="text-[10px] text-[#8A9A8C]">
+                      Último reporte: <span className="font-medium text-[#6B716C]">{formatFechaHora(av.ultimoReporte.fecha)}</span>
+                      {av.ultimoReporte.usuario && <> · {av.ultimoReporte.usuario}</>}
+                    </div>
+                  )}
                 </div>
               </Link>
             );
@@ -258,18 +266,8 @@ export default function OrdenDetallePage({ params }: { params: { id: string } })
       <Section title="Diseño y especificaciones (PDF)" icon="">
         {orden.pdf_url ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-end">
-              <a
-                href={orden.pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs font-medium text-[#1A1A1A] border border-brand-green/30 hover:bg-brand-green-50 rounded-md px-3 py-1.5 transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8m0 0L4 6m3 3l3-3M2 11h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                Abrir / descargar PDF
-              </a>
-            </div>
-            {/* Visor con pdf.js: se ve incrustado también en teléfonos */}
+            {/* Solo visor incrustado — sin botón de descarga: el diseño es
+                información sensible de la empresa y se consulta dentro de la app. */}
             <PdfViewer url={orden.pdf_url} />
           </div>
         ) : (

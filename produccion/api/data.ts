@@ -46,13 +46,31 @@ export async function GET() {
     }
   }
 
+  // Último reporte de la bitácora por (orden, área): cuándo y quién reportó.
+  const { rows: ultRows } = await query<{
+    orden_id: string;
+    area: string;
+    creado_en: Date | string;
+    usuario_nombre: string | null;
+  }>(
+    `SELECT DISTINCT ON (orden_id, area) orden_id, area, creado_en, usuario_nombre
+       FROM reportes
+      ORDER BY orden_id, area, creado_en DESC`,
+  );
+  const ultimoPor = new Map(
+    ultRows.map(u => [
+      `${u.orden_id}|${u.area}`,
+      { fecha: new Date(u.creado_en).toISOString(), usuario: u.usuario_nombre },
+    ]),
+  );
+
   // Agrupar por orden → AvanceArea[], en el orden del flujo de producción.
   const avances: Record<string, AvanceArea[]> = {};
   for (const r of avRows) {
     const list = (avances[r.orden_id] ??= []);
     let area = list.find(a => a.area === r.area);
     if (!area) {
-      area = { area: r.area as Area, componentes: [] };
+      area = { area: r.area as Area, componentes: [], ultimoReporte: ultimoPor.get(`${r.orden_id}|${r.area}`) };
       list.push(area);
     }
     area.componentes.push({ nombre: r.nombre, meta: Number(r.meta), hecho: Number(r.hecho) });

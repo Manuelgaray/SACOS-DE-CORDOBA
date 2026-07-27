@@ -39,6 +39,8 @@ export interface Orden {
   fecha_creacion: string;
   fecha_inicio: string | null;
   fecha_entrega: string | null;
+  // Cuándo terminó la orden (status → terminada); alimenta el calendario.
+  fecha_fin: string | null;
   // El diseño y las especificaciones técnicas viven en el PDF subido (data URL).
   pdf_url: string | null;
   // Elementos de corte capturados/extraídos para la explosión de materiales.
@@ -73,7 +75,10 @@ export const AREA_COLORS: Record<Area, { bg: string; text: string; border: strin
   empaque: { bg: 'bg-empaque-bg', text: 'text-empaque-text', border: 'border-[#A8C888]' },
 };
 
-export const AREAS_FLOW: Area[] = ['almacen', 'corte', 'small', 'big', 'tips', 'tapa', 'calidad', 'empaque'];
+// Secuencia real del flujo de producción de la planta. Define el orden en que se
+// muestran las áreas (menú, detalle de la orden, calendario) y cuál es el
+// "frente de trabajo" de una orden (la primera área que no está al 100 %).
+export const AREAS_FLOW: Area[] = ['almacen', 'corte', 'small', 'tips', 'big', 'tapa', 'calidad', 'empaque'];
 
 // Las órdenes ya no viven aquí: se guardan en PostgreSQL (tabla `ordenes`) y se
 // cargan vía /api/data. Las órdenes de ejemplo se siembran en db/schema.sql.
@@ -90,4 +95,15 @@ export function formatDate(dateStr: string | null | undefined, opts?: Intl.DateT
 export function formatDateShort(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+}
+
+/** Fecha corta + hora (para marcas de reportes: "22 jul 10:15 a.m."). */
+export function formatFechaHora(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  return (
+    d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) +
+    ' ' +
+    d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  );
 }
