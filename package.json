@@ -8,6 +8,7 @@
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
+    "prod": "npm run build && npm start",
     "lint": "next lint"
   },
   "dependencies": {

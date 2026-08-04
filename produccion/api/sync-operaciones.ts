@@ -15,7 +15,8 @@
 
 import { query } from '@/compartido/db';
 import {
-  PUNTO_HOJA_MATERIAL, PUNTO_HOJA_RAWBAG, PUNTO_HOJA_CALIDAD, PUNTO_HOJA_EMPAQUE,
+  PUNTO_HOJA_MATERIAL, PUNTO_HOJA_RAWBAG, PUNTO_HOJA_CALIDAD,
+  PUNTO_HOJA_EMPAQUE, PUNTO_HOJA_ALMACEN,
 } from '@/produccion/produccion';
 import type { Area } from '@/compartido/mock-data';
 
@@ -25,6 +26,7 @@ export const AREAS_HOJA_MATERIAL: Area[] = ['small', 'tips'];
 export const AREAS_HOJA_RAWBAG: Area[] = ['big', 'tapa'];
 export const AREAS_HOJA_CALIDAD: Area[] = ['calidad'];
 export const AREAS_HOJA_EMPAQUE: Area[] = ['empaque'];
+export const AREAS_HOJA_ALMACEN: Area[] = ['almacen'];
 
 // Tablas permitidas (el nombre no puede ir como parámetro en SQL).
 const TABLA = {
@@ -32,6 +34,7 @@ const TABLA = {
   rawbag: 'hoja_rawbag',
   calidad: 'hoja_calidad',
   empaque: 'hoja_empaque',
+  almacen: 'hoja_almacen',
 } as const;
 
 export interface UsuarioSync {
@@ -197,6 +200,26 @@ export async function sincronizarDesdeHojaEmpaque(ordenId: string, usuario: Usua
   const meta = Math.max(1, Number(ord[0]?.cantidad ?? 0));
   const hecho = Math.min(meta, Number(rows[0]?.total ?? 0));
   return aplicarAAreas(ordenId, AREAS_HOJA_EMPAQUE, PUNTO_HOJA_EMPAQUE, meta, hecho, usuario);
+}
+
+/**
+ * Almacén: el 100 % son los sacos de la orden con su material ya entregado a
+ * producción. Se suman las cantidades de todas las entregas (una hoja por
+ * salida de almacén).
+ */
+export async function sincronizarDesdeHojaAlmacen(ordenId: string, usuario: UsuarioSync) {
+  const { rows } = await query<{ total: number }>(
+    `SELECT COALESCE(SUM(cantidad_entregada), 0)::int AS total
+       FROM ${TABLA.almacen} WHERE orden_id = $1`,
+    [ordenId],
+  );
+  const { rows: ord } = await query<{ cantidad: number }>(
+    'SELECT cantidad FROM ordenes WHERE id = $1',
+    [ordenId],
+  );
+  const meta = Math.max(1, Number(ord[0]?.cantidad ?? 0));
+  const hecho = Math.min(meta, Number(rows[0]?.total ?? 0));
+  return aplicarAAreas(ordenId, AREAS_HOJA_ALMACEN, PUNTO_HOJA_ALMACEN, meta, hecho, usuario);
 }
 
 /** Big y Tapa capturan la hoja de Raw Bag; Small y Tips la de material. */

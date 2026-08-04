@@ -63,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-[#F6F8F1] flex flex-col lg:flex-row">
         {/* Sidebar desktop */}
         <div
-          className={`hidden lg:block lg:fixed lg:inset-y-0 lg:z-30 transition-all duration-200 ${
+          className={`no-imprimir hidden lg:block lg:fixed lg:inset-y-0 lg:z-30 transition-all duration-200 ${
             collapsed ? 'lg:w-16' : 'lg:w-56'
           }`}
         >
@@ -75,18 +75,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           />
         </div>
 
-        {/* Contenido principal */}
+        {/* Contenido principal. Al imprimir una hoja, los márgenes del shell
+            desaparecen para que el formato ocupe el papel completo. */}
         <div
-          className={`flex-1 flex flex-col min-h-screen transition-all duration-200 ${
+          className={`flex-1 flex flex-col min-h-screen transition-all duration-200 print:ml-0 print:min-h-0 ${
             collapsed ? 'lg:ml-16' : 'lg:ml-56'
           }`}
         >
-          <TopBar usuario={sesion} email={sesion.email} />
-          <main className="flex-1 pb-20 lg:pb-6">{children}</main>
+          <div className="no-imprimir">
+            <TopBar usuario={sesion} email={sesion.email} />
+          </div>
+          <main className="flex-1 pb-20 lg:pb-6 print:p-0 print:pb-0">{children}</main>
         </div>
 
         {/* Nav móvil */}
-        <div className="lg:hidden">
+        <div className="lg:hidden no-imprimir">
           <MobileNav />
         </div>
       </div>

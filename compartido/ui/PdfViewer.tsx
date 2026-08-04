@@ -11,7 +11,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSession } from '@/autenticacion/auth';
 
-const MAX_PAGINAS = 12; // suficiente para planos/órdenes; evita PDFs enormes
+const MAX_PAGINAS = 12;      // suficiente para planos/órdenes; evita PDFs enormes
+const MAX_PX_ANCHO = 2600;   // tope del lienzo por página (nitidez sin desperdicio)
 
 export default function PdfViewer({ url }: { url: string }) {
   const contRef = useRef<HTMLDivElement>(null);
@@ -48,8 +49,11 @@ export default function PdfViewer({ url }: { url: string }) {
         for (let p = 1; p <= paginas; p++) {
           const page = await doc.getPage(p);
           const base = page.getViewport({ scale: 1 });
-          const escala = (anchoCont / base.width) * dpr;
-          const viewport = page.getViewport({ scale: escala });
+          // En pantallas anchas el contenedor puede pasar de 1500 px; con dpr 2
+          // el lienzo se dispararía a 3000+ px por página. El tope mantiene el
+          // plano nítido sin comerse la memoria en PDFs de varias hojas.
+          const anchoPixeles = Math.min(anchoCont * dpr, MAX_PX_ANCHO);
+          const viewport = page.getViewport({ scale: anchoPixeles / base.width });
 
           const canvas = document.createElement('canvas');
           canvas.width = Math.ceil(viewport.width);
@@ -63,6 +67,13 @@ export default function PdfViewer({ url }: { url: string }) {
           await page.render({ canvasContext: ctx, viewport }).promise;
           if (cancelado) return;
           cont.appendChild(canvas);
+
+          // En cuanto la primera página está pintada se quita el spinner: las
+          // demás siguen apareciendo abajo mientras el usuario ya la revisa.
+          if (p === 1) setEstado('listo');
+          // Cede el hilo entre páginas para que la interfaz no se congele
+          // mientras se dibujan planos grandes.
+          if (p < paginas) await new Promise(r => setTimeout(r, 0));
         }
 
         await doc.destroy();

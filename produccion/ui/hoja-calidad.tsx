@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useProduccion } from '@/produccion/produccion-store';
+import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { AREA_LABELS } from '@/compartido/mock-data';
 import type { AvanceArea } from '@/produccion/produccion';
@@ -262,8 +263,10 @@ export default function HojaCalidadPage() {
         <h1 className="text-xl lg:text-2xl font-semibold text-[#1A1A1A]">Control de mesas de calidad</h1>
         <p className="text-sm text-[#6B716C]">
           Hoja de {AREA_LABELS.calidad}: los sacos que llegan de {AREA_LABELS.tapa} se inflan y se
-          revisan en las mesas. Toca los números para ir tachando la retícula, igual que en el papel.
+          revisan en las mesas. Cuenta con el botón <span className="font-semibold">+</span> de cada
+          mesa y la retícula se va tachando sola, igual que en el papel.
         </p>
+        <BotonImprimir orden={orden.id} hoja="calidad" permitido={puede} />
       </div>
 
       <PestanasHoja pestanas={pestanasCalidad(orden.id)} activa={PESTANA_MESAS} />

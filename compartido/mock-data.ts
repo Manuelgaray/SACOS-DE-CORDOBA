@@ -85,16 +85,24 @@ export const AREAS_FLOW: Area[] = ['almacen', 'corte', 'small', 'tips', 'big', '
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Las fechas sin hora ('YYYY-MM-DD', como la FMF) se anclan al mediodía local:
+ *  new Date('2026-07-15') es medianoche UTC y en México mostraría el día 14. */
+function aFechaLocal(dateStr: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())
+    ? new Date(`${dateStr.trim()}T12:00:00`)
+    : new Date(dateStr);
+}
+
 export function formatDate(dateStr: string | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('es-MX', opts ?? {
+  return aFechaLocal(dateStr).toLocaleDateString('es-MX', opts ?? {
     day: '2-digit', month: 'short', year: 'numeric',
   });
 }
 
 export function formatDateShort(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+  return aFechaLocal(dateStr).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
 
 /** Fecha corta + hora (para marcas de reportes: "22 jul 10:15 a.m."). */

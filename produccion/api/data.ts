@@ -1,35 +1,39 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
 import { rowToOrden, ORDEN_COLS, type OrdenRow } from '@/ordenes/orden-map';
-import { generarAvance, type AvanceArea } from '@/produccion/produccion';
-import { AREAS_FLOW, type Area } from '@/compartido/mock-data';
+import { generarAvance } from '@/produccion/produccion';
+import { avancesDeOrdenes } from '@/produccion/api/avances-map';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-interface AvanceRow {
-  orden_id: string;
-  area: string;
-  comp_idx: number;
-  nombre: string;
-  meta: number;
-  hecho: number;
-}
+// Ventana de trabajo: además de lo que sigue en piso, se conservan las órdenes
+// cerradas hace poco (para consultarlas sin ir al listado completo).
+const DIAS_RECIENTES = 60;
 
-// GET /api/data — todas las órdenes + sus avances (lo que carga el store).
+// GET /api/data — el CONJUNTO DE TRABAJO que carga el store: lo que está en
+// producción más lo terminado hace poco. El histórico completo no se trae aquí;
+// vive en el listado paginado (/api/ordenes) y en el detalle de cada orden.
+// Así el refresco periódico se mantiene barato aunque la planta acumule años.
 export async function GET() {
   const { rows: ordenRows } = await query<OrdenRow>(
-    `SELECT ${ORDEN_COLS} FROM ordenes ORDER BY fecha_creacion DESC`,
+    `SELECT ${ORDEN_COLS} FROM ordenes
+      WHERE status IN ('activa', 'programada', 'pausada')
+         OR fecha_creacion > NOW() - ($1 || ' days')::interval
+         OR fecha_fin      > NOW() - ($1 || ' days')::interval
+      ORDER BY fecha_creacion DESC`,
+    [DIAS_RECIENTES],
   );
   const ordenes = ordenRows.map(rowToOrden);
+  const ids = ordenes.map(o => o.id);
 
-  const { rows: avRows } = await query<AvanceRow>(
-    'SELECT orden_id, area, comp_idx, nombre, meta, hecho FROM avances ORDER BY orden_id, area, comp_idx',
-  );
-
-  // Backfill: las órdenes sin filas de avance (p. ej. las demo sembradas por SQL)
+  // Backfill: las órdenes sin filas de avance (p. ej. las sembradas por SQL)
   // generan sus avances la primera vez y se guardan.
-  const conAvances = new Set(avRows.map(r => r.orden_id));
+  const { rows: conAvancesRows } = await query<{ orden_id: string }>(
+    'SELECT DISTINCT orden_id FROM avances WHERE orden_id = ANY($1::text[])',
+    [ids],
+  );
+  const conAvances = new Set(conAvancesRows.map(r => r.orden_id));
   for (const orden of ordenes) {
     if (conAvances.has(orden.id)) continue;
     for (const av of generarAvance(orden)) {
@@ -41,43 +45,10 @@ export async function GET() {
            ON CONFLICT (orden_id, area, comp_idx) DO NOTHING`,
           [orden.id, av.area, i, c.nombre, c.meta, c.hecho],
         );
-        avRows.push({ orden_id: orden.id, area: av.area, comp_idx: i, nombre: c.nombre, meta: c.meta, hecho: c.hecho });
       }
     }
   }
 
-  // Último reporte de la bitácora por (orden, área): cuándo y quién reportó.
-  const { rows: ultRows } = await query<{
-    orden_id: string;
-    area: string;
-    creado_en: Date | string;
-    usuario_nombre: string | null;
-  }>(
-    `SELECT DISTINCT ON (orden_id, area) orden_id, area, creado_en, usuario_nombre
-       FROM reportes
-      ORDER BY orden_id, area, creado_en DESC`,
-  );
-  const ultimoPor = new Map(
-    ultRows.map(u => [
-      `${u.orden_id}|${u.area}`,
-      { fecha: new Date(u.creado_en).toISOString(), usuario: u.usuario_nombre },
-    ]),
-  );
-
-  // Agrupar por orden → AvanceArea[], en el orden del flujo de producción.
-  const avances: Record<string, AvanceArea[]> = {};
-  for (const r of avRows) {
-    const list = (avances[r.orden_id] ??= []);
-    let area = list.find(a => a.area === r.area);
-    if (!area) {
-      area = { area: r.area as Area, componentes: [], ultimoReporte: ultimoPor.get(`${r.orden_id}|${r.area}`) };
-      list.push(area);
-    }
-    area.componentes.push({ nombre: r.nombre, meta: Number(r.meta), hecho: Number(r.hecho) });
-  }
-  for (const id of Object.keys(avances)) {
-    avances[id].sort((a, b) => AREAS_FLOW.indexOf(a.area) - AREAS_FLOW.indexOf(b.area));
-  }
-
+  const avances = await avancesDeOrdenes(ids);
   return NextResponse.json({ ordenes, avances });
 }

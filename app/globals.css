@@ -67,3 +67,296 @@ input, textarea, select, button {
 .animate-modal-in {
   animation: modal-in 140ms ease-out;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HOJAS IMPRIMIBLES — réplica de los formatos oficiales de la planta.
+
+   Se usan en /produccion/imprimir para sacar el papel que pide la auditoría,
+   así que la disposición debe ser IDÉNTICA al preimpreso. Todo va en
+   milímetros y puntos (no en px): lo que se ve en pantalla es el tamaño real
+   de la hoja carta.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.papel {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000;
+  line-height: 1.15;
+}
+
+/* Una hoja carta. Horizontal por defecto; .hoja-v es vertical. */
+.papel .hoja {
+  width: 263mm;
+  min-height: 199mm;
+  background: #fff;
+  margin: 0 auto 10mm;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+.papel .hoja-v {
+  width: 199mm;
+  min-height: 263mm;
+}
+
+/* Casi todos los formatos son UNA caja con todo adentro. */
+.papel .marco {
+  border: 1.2pt solid #000;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Membrete: logo a la izquierda, título centrado, código a la derecha. */
+.papel .membrete {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  padding: 1mm 2mm;
+  border-bottom: 1.2pt solid #000;
+}
+.papel .membrete.suelto { border-bottom: 0; }
+.papel .membrete img { height: 9mm; width: auto; }
+.papel .membrete h1 {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  font-size: 10.5pt;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.papel .membrete .cod { font-size: 6pt; white-space: nowrap; }
+
+/* Renglones de datos del encabezado. Ancho automático: la etiqueta nunca se
+   encima con el valor. */
+.papel table.campos {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.papel table.campos td {
+  border: 1pt solid #000;
+  padding: 1mm 1.5mm;
+  font-size: 7.5pt;
+  vertical-align: middle;
+}
+.papel table.campos td.et {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 6.5pt;
+  white-space: nowrap;
+  width: 1%;
+}
+.papel table.campos td.val { white-space: nowrap; }
+
+/* Tabla de captura */
+.papel table.datos {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.papel table.datos th,
+.papel table.datos td {
+  border: 1pt solid #000;
+  padding: 0.7mm 0.8mm;
+  font-size: 7pt;
+  text-align: center;
+  overflow: hidden;
+  word-break: break-word;
+  vertical-align: middle;
+}
+.papel table.datos th {
+  font-size: 6pt;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.papel table.datos td.izq,
+.papel table.datos th.izq { text-align: left; }
+.papel table.datos tr.vacia td { height: 4.6mm; }
+.papel table.datos td.libre { height: 5.5mm; }
+
+/* Bloque "Devolución de materiales" (Almacén): va separado del resto con una
+   línea más gruesa, y sus dos firmas caen justo debajo de sus columnas. */
+.papel table.datos th.dev-ini,
+.papel table.datos td.dev-ini {
+  border-left-width: 2.2pt;
+}
+
+/* Encabezados de columna en vertical (los del área de corte) */
+.papel th.vert > span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  display: inline-block;
+  font-size: 5.6pt;
+  line-height: 1;
+}
+
+/* Rellenar líneas: "ORDEN: ______" sin caja */
+.papel .blanco {
+  display: inline-block;
+  border-bottom: 1pt solid #000;
+  min-width: 28mm;
+  padding: 0 1.5mm;
+  font-weight: 400;
+}
+.papel .linea-campos {
+  display: flex;
+  gap: 8mm;
+  font-size: 8.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  align-items: baseline;
+  margin-top: 2.5mm;
+  flex-wrap: wrap;
+}
+.papel .linea-larga { border-bottom: 1pt solid #000; height: 4.5mm; margin-top: 1.5mm; }
+
+/* Retícula de conteo (mesas de calidad y tarimas de prensa) */
+.papel .reticula {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+.papel .reticula td {
+  border: 1pt solid #000;
+  text-align: center;
+  font-size: 5.2pt;
+  line-height: 1;
+  padding: 0.3mm 0;
+  font-variant-numeric: tabular-nums;
+}
+.papel .reticula td.tachado { text-decoration: line-through; font-weight: 700; }
+.papel .reticula td.hueco { border: 0; }
+.papel .reticula-marco { border: 1.6pt solid #000; }
+
+/* ── Carátula de la orden de producción (VEN-FOR-005) ──────────────────────
+   Este formato no es una tabla de captura: es una portada con campos grandes
+   sobre línea. Va en carta vertical. */
+.papel .cab-control {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.papel .cab-control td {
+  border: 1pt solid #000;
+  padding: 1mm 2mm;
+  text-align: center;
+  font-size: 7.5pt;
+  line-height: 1.3;
+}
+.papel .cab-control td b { display: block; font-weight: 700; }
+
+.papel .caratula-titulo {
+  display: flex;
+  align-items: flex-start;
+  gap: 4mm;
+  margin-top: 8mm;
+}
+.papel .caratula-titulo img { height: 17mm; width: auto; flex: 0 0 auto; }
+/* El bloque de texto se centra en el espacio que deja el logo, como en el papel. */
+.papel .caratula-titulo .textos {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.papel .caratula-titulo .no {
+  font-size: 23pt;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.papel .caratula-titulo .tipo {
+  font-size: 20pt;
+  font-weight: 700;
+  margin-top: 5mm;
+  text-transform: uppercase;
+}
+
+.papel table.caratula-campos {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8mm;
+  table-layout: fixed;
+}
+.papel table.caratula-campos td {
+  padding: 2.5mm 0 1mm;
+  vertical-align: bottom;
+}
+.papel table.caratula-campos td.et {
+  width: 42%;
+  font-size: 15.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-right: 4mm;
+}
+.papel table.caratula-campos td.val {
+  border-bottom: 1pt solid #000;
+  text-align: center;
+  font-size: 15.5pt;
+}
+
+.papel .caratula-embarcar {
+  margin-top: 8mm;
+  font-size: 13pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.papel .caratula-embarcar span {
+  display: block;
+  margin-top: 2mm;
+  font-size: 10pt;
+  font-weight: 400;
+  text-transform: none;
+  /* Una orden puede repartirse a varios destinos: un renglón por destino. */
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+/* Pie de página del formato */
+.papel .nota-pie {
+  font-size: 5.8pt;
+  padding: 1mm 2mm;
+  border-top: 1pt solid #000;
+}
+.papel .nota-pie p { margin: 0 0 0.6mm; }
+.papel .codigo-pie {
+  font-size: 6pt;
+  text-align: right;
+  padding: 1mm 0 0;
+}
+/* Rastro de origen: quién y cuándo lo imprimió (útil en auditoría) */
+.papel .origen {
+  font-size: 5.5pt;
+  color: #444;
+  padding-top: 0.8mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+}
+
+/* ── Impresión ─────────────────────────────────────────────────────────── */
+@media print {
+  .no-imprimir { display: none !important; }
+
+  html, body {
+    background: #fff !important;
+    height: auto !important;
+  }
+
+  .papel .hoja {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+  .papel .hoja:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .papel table.datos,
+  .papel .reticula { break-inside: avoid; page-break-inside: avoid; }
+  .papel tr { break-inside: avoid; page-break-inside: avoid; }
+}
+

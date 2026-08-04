@@ -7,14 +7,51 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession, canUpload } from '@/autenticacion/auth';
 import { Modal, ConfirmModal } from '@/compartido/ui/Modal';
 import PdfViewer from '@/compartido/ui/PdfViewer';
 
+// Cada spec es el DISEÑO de un saco: especificaciones + explosión + PDF.
+interface Diseno {
+  spec: string;
+  cliente: string;
+  tipo_saco: string;
+  medida: string;
+  carga_lbs: number;
+  grado: string;
+  tiene_pdf: boolean;
+  tiene_explosion: boolean;
+}
+
 interface Cliente {
   nombre: string;
   specs: string[];
+  disenos: Diseno[];
+}
+
+// Detalle completo de un diseño (lo que se ve al abrir el spec).
+interface ElementoCorte {
+  nombre: string;
+  piezasPorSaco: number;
+  ancho: number;
+  largo: number;
+  unidad: string;
+  grupo: string;
+}
+
+interface DisenoDetalle {
+  spec: string;
+  cliente: string | null;
+  tipo_saco: string;
+  medida: string;
+  carga_lbs: number;
+  grado: string | null;
+  corte_elementos: ElementoCorte[] | null;
+  pdf_url: string | null;
+  registrado_por?: string | null;
+  actualizado_en?: string;
 }
 
 const inputCls =
@@ -36,8 +73,10 @@ export default function ClientesPage() {
   const [aEliminar, setAEliminar] = useState<Cliente | null>(null);
   const [specAEliminar, setSpecAEliminar] = useState<{ cliente: string; spec: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  // Visor de PDF del spec (dentro de la app: el PDF es dato sensible).
-  const [pdfVer, setPdfVer] = useState<{ spec: string; url: string } | null>(null);
+  // Visor del diseño: medidas capturadas + PDF, dentro de la app (el diseño es
+  // información sensible: no se descarga ni se abre en otra pestaña).
+  const [disenoVer, setDisenoVer] = useState<DisenoDetalle | null>(null);
+  const [cargandoDiseno, setCargandoDiseno] = useState(false);
 
   useEffect(() => {
     if (ready && !permitido) router.replace('/dashboard');
@@ -123,33 +162,28 @@ export default function ClientesPage() {
     }
   }
 
-  async function agregarSpec(cliente: string, spec: string): Promise<string | null> {
-    const res = await fetch('/api/specs', {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ cliente, spec }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return (data?.error as string) ?? 'No se pudo registrar el spec.';
-    cargar();
-    return null;
-  }
-
-  // Abre el PDF de la última orden del spec en un visor DENTRO de la app
-  // (sin pestaña nueva ni descarga: el diseño es información sensible).
-  async function verPdf(spec: string) {
+  // Abre el diseño completo (medidas capturadas + PDF) DENTRO de la app.
+  // Si el spec aún no tiene ficha, se muestra lo de su última orden.
+  async function verDiseno(spec: string) {
     setMsg(null);
+    setCargandoDiseno(true);
     try {
       const res = await fetch(`/api/specs/${encodeURIComponent(spec)}`, { headers: headers() });
       const data = await res.json().catch(() => ({}));
-      const pdfUrl = data?.orden?.pdf_url as string | undefined;
-      if (res.ok && pdfUrl) {
-        setPdfVer({ spec, url: pdfUrl });
-      } else {
-        setMsg({ tipo: 'error', texto: `El spec ${spec} aún no tiene órdenes con PDF.` });
+      if (!res.ok) {
+        setMsg({ tipo: 'error', texto: data?.error ?? `No se pudo abrir el spec ${spec}.` });
+        return;
       }
+      const d = (data.diseno ?? data.orden) as DisenoDetalle | null;
+      if (!d) {
+        setMsg({ tipo: 'error', texto: `El spec ${spec} todavía no tiene diseño capturado.` });
+        return;
+      }
+      setDisenoVer({ ...d, spec: data.spec ?? spec, cliente: data.cliente ?? null });
     } catch {
       setMsg({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
+    } finally {
+      setCargandoDiseno(false);
     }
   }
 
@@ -184,7 +218,8 @@ export default function ClientesPage() {
           <h1 className="text-xl lg:text-2xl font-semibold text-[#1A1A1A] mb-0.5">Clientes</h1>
           <p className="text-sm text-[#6B716C]">
             Registro maestro: {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'} ·{' '}
-            {totalSpecs} {totalSpecs === 1 ? 'spec' : 'specs'} (cada spec es único e irrepetible)
+            {totalSpecs} {totalSpecs === 1 ? 'diseño' : 'diseños'}. Cada diseño guarda su PDF,
+            especificaciones y explosión, y adelanta la captura de la orden.
           </p>
         </div>
         <button
@@ -201,6 +236,12 @@ export default function ClientesPage() {
         placeholder="Buscar cliente o spec…"
         className={inputCls}
       />
+
+      {cargandoDiseno && (
+        <div className="text-sm rounded-lg border border-[#E2E5E2] bg-white px-3.5 py-2.5 text-[#6B716C]">
+          Abriendo el diseño…
+        </div>
+      )}
 
       {msg && (
         <div
@@ -219,9 +260,8 @@ export default function ClientesPage() {
             cliente={c}
             onRenombrar={() => { setRenombrando(c); setMsg(null); }}
             onEliminar={() => { setAEliminar(c); setMsg(null); }}
-            onAgregarSpec={(spec) => agregarSpec(c.nombre, spec)}
             onEliminarSpec={(spec) => { setSpecAEliminar({ cliente: c.nombre, spec }); setMsg(null); }}
-            onVerPdf={verPdf}
+            onVerDiseno={verDiseno}
           />
         ))}
         {filtrados.length === 0 && (
@@ -266,14 +306,14 @@ export default function ClientesPage() {
         Las órdenes ya creadas no se modifican.
       </ConfirmModal>
 
-      {/* Visor del PDF del spec (solo dentro de la app) */}
+      {/* Visor del diseño: medidas capturadas + PDF (solo dentro de la app) */}
       <Modal
-        open={!!pdfVer}
-        onClose={() => setPdfVer(null)}
-        title={`Diseño · ${pdfVer?.spec ?? ''}`}
-        size="lg"
+        open={!!disenoVer}
+        onClose={() => setDisenoVer(null)}
+        title={`Diseño · ${disenoVer?.spec ?? ''}`}
+        size="xl"
       >
-        {pdfVer && <PdfViewer url={pdfVer.url} />}
+        {disenoVer && <VistaDiseno diseno={disenoVer} />}
       </Modal>
 
       {/* Eliminar spec */}
@@ -296,33 +336,18 @@ export default function ClientesPage() {
 // ─── Tarjeta de cliente con sus specs ───────────────────────────────────────────
 
 function ClienteCard({
-  cliente, onRenombrar, onEliminar, onAgregarSpec, onEliminarSpec, onVerPdf,
+  cliente, onRenombrar, onEliminar, onEliminarSpec, onVerDiseno,
 }: {
   cliente: Cliente;
   onRenombrar: () => void;
   onEliminar: () => void;
-  onAgregarSpec: (spec: string) => Promise<string | null>;
   onEliminarSpec: (spec: string) => void;
-  onVerPdf: (spec: string) => void;
+  onVerDiseno: (spec: string) => void;
 }) {
-  const [nuevoSpec, setNuevoSpec] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [agregando, setAgregando] = useState(false);
-
-  async function submitSpec(e: React.FormEvent) {
-    e.preventDefault();
-    const spec = nuevoSpec.trim();
-    if (!spec) return;
-    setAgregando(true);
-    setError(null);
-    const err = await onAgregarSpec(spec);
-    setAgregando(false);
-    if (err) {
-      setError(err);
-    } else {
-      setNuevoSpec('');
-    }
-  }
+  // Specs que están en el registro pero todavía sin ficha de diseño.
+  const disenos = cliente.disenos ?? [];
+  const conFicha = new Set(disenos.map(d => d.spec));
+  const sueltos = cliente.specs.filter(s => !conFicha.has(s));
 
   return (
     <div className="bg-white border border-[#E2E5E2] rounded-xl shadow-card p-4">
@@ -348,52 +373,172 @@ function ClienteCard({
         </div>
       </div>
 
-      {/* Specs como fichas */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {cliente.specs.map((s) => (
-          <span key={s} className="inline-flex items-center gap-1 text-xs font-mono bg-[#F6F8F1] border border-[#E2E5E2] rounded-md pl-2 pr-1 py-1">
-            <button
-              onClick={() => onVerPdf(s)}
-              title={`Ver el PDF de la última orden de ${s}`}
-              className="inline-flex items-center gap-1 text-[#1A1A1A] hover:text-brand-green hover:underline decoration-dotted transition-colors"
-            >
-              <svg width="11" height="11" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
-                <path d="M3 1.5h5L11 4.5v8a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                <path d="M8 1.5v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-              </svg>
-              {s}
-            </button>
-            <button
-              onClick={() => onEliminarSpec(s)}
-              title={`Eliminar ${s}`}
-              className="text-[#8A9A8C] hover:text-red-600 transition-colors px-0.5"
-            >
-              ✕
-            </button>
-          </span>
+      {/* Diseños registrados */}
+      <div className="space-y-2">
+        {disenos.map((d) => (
+          <div key={d.spec} className="border border-[#E8EFE9] rounded-lg px-3 py-2.5 hover:border-brand-green/30 transition-colors">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => onVerDiseno(d.spec)}
+                    title={`Abrir el diseño de ${d.spec}`}
+                    className="text-sm font-mono font-bold text-[#1A1A1A] hover:text-brand-green hover:underline decoration-dotted transition-colors"
+                  >
+                    {d.spec}
+                  </button>
+                  {d.tipo_saco && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#F0F5F0] text-[#6B716C]">
+                      {d.tipo_saco}
+                    </span>
+                  )}
+                  {d.grado && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-orange-light/50 text-[#6B5418]">
+                      {d.grado}
+                    </span>
+                  )}
+                  {!d.tiene_pdf && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FFF7E8] border border-[#E8C88A] text-[#6B5418]">
+                      Sin PDF
+                    </span>
+                  )}
+                  {!d.tiene_explosion && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FFF7E8] border border-[#E8C88A] text-[#6B5418]">
+                      Sin explosión
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-[#8A9A8C] mt-0.5">
+                  {d.medida || 'sin medida'}
+                  {d.carga_lbs > 0 && <> · <span className="font-mono">{d.carga_lbs.toLocaleString()}</span> lbs</>}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button onClick={() => onVerDiseno(d.spec)}
+                  className="text-xs font-medium text-[#1A1A1A] border border-[#E2E5E2] hover:bg-[#F6F8F1] rounded-md px-2.5 py-1 transition-colors">
+                  Ver diseño
+                </button>
+                <Link href={`/clientes/diseno?spec=${encodeURIComponent(d.spec)}`}
+                  className="text-xs font-medium text-[#1A6B4A] border border-brand-green/30 hover:bg-brand-green-50 rounded-md px-2.5 py-1 transition-colors">
+                  Editar
+                </Link>
+                <button onClick={() => onEliminarSpec(d.spec)} title={`Eliminar ${d.spec}`}
+                  className="text-[#8A9A8C] hover:text-red-600 transition-colors px-1">
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
         ))}
-        {cliente.specs.length === 0 && (
-          <span className="text-xs text-[#8A9A8C]">Sin specs aún.</span>
+
+        {/* Specs heredados de órdenes viejas, aún sin ficha de diseño */}
+        {sueltos.map((s) => (
+          <div key={s} className="flex items-center justify-between gap-3 flex-wrap border border-dashed border-[#E2E5E2] rounded-lg px-3 py-2">
+            <span className="text-sm font-mono text-[#6B716C]">{s}</span>
+            <Link href={`/clientes/diseno?spec=${encodeURIComponent(s)}`}
+              className="text-xs font-medium text-[#1A6B4A] hover:underline">
+              Completar diseño →
+            </Link>
+          </div>
+        ))}
+
+        {disenos.length === 0 && sueltos.length === 0 && (
+          <p className="text-xs text-[#8A9A8C]">Sin diseños registrados todavía.</p>
         )}
       </div>
 
-      {/* Agregar spec */}
-      <form onSubmit={submitSpec} className="flex items-center gap-2 mt-3">
-        <input
-          value={nuevoSpec}
-          onChange={(e) => setNuevoSpec(e.target.value.toUpperCase())}
-          placeholder="Nuevo spec (ej. MEXQ07354)"
-          className="flex-1 min-w-0 px-3 py-1.5 text-xs font-mono border border-[#E2E5E2] rounded-md bg-[#F8FAF8] focus:outline-none focus:ring-1 focus:ring-brand-green focus:border-brand-green"
-        />
-        <button
-          type="submit"
-          disabled={agregando || !nuevoSpec.trim()}
-          className="text-xs font-semibold text-white bg-brand-green hover:bg-brand-green-dark rounded-md px-3 py-1.5 transition-colors disabled:opacity-50"
-        >
-          {agregando ? '…' : '+ Agregar'}
-        </button>
-      </form>
-      {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
+      <Link
+        href={`/clientes/diseno?cliente=${encodeURIComponent(cliente.nombre)}`}
+        className="inline-flex mt-3 text-xs font-semibold text-white bg-brand-green hover:bg-brand-green-dark rounded-md px-3 py-1.5 transition-colors"
+      >
+        + Nuevo diseño
+      </Link>
+    </div>
+  );
+}
+
+// ─── Vista del diseño: medidas capturadas + PDF ─────────────────────────────────
+
+function VistaDiseno({ diseno }: { diseno: DisenoDetalle }) {
+  const elementos = diseno.corte_elementos ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Especificaciones */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Dato label="Cliente" valor={diseno.cliente ?? '—'} />
+        <Dato label="Tipo de saco" valor={diseno.tipo_saco || '—'} />
+        <Dato label="Medida" valor={diseno.medida || '—'} mono />
+        <Dato label="Carga" valor={diseno.carga_lbs ? `${diseno.carga_lbs.toLocaleString()} lbs` : '—'} mono />
+      </div>
+      {diseno.grado && (
+        <div className="text-xs">
+          <span className="text-[#8A9A8C]">Grado: </span>
+          <span className="font-semibold text-[#1A1A1A]">{diseno.grado}</span>
+        </div>
+      )}
+
+      {/* Elementos de corte con sus medidas */}
+      <div>
+        <h3 className="text-xs font-semibold text-[#1A1A1A] uppercase tracking-wide mb-2">
+          Elementos de corte
+        </h3>
+        {elementos.length === 0 ? (
+          <p className="text-xs text-[#8A9A8C]">
+            Este diseño todavía no tiene elementos capturados.
+          </p>
+        ) : (
+          <div className="border border-[#E2E5E2] rounded-lg overflow-hidden">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-[#F8FAF8] text-[10px] uppercase tracking-wide text-[#8A9A8C] border-b border-[#E2E5E2]">
+                  <th className="text-left px-3 py-2 font-medium">Elemento</th>
+                  <th className="px-3 py-2 font-medium w-24">Pzas / saco</th>
+                  <th className="px-3 py-2 font-medium w-36">Medida</th>
+                  <th className="px-3 py-2 font-medium w-24">Grupo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F0F5F0]">
+                {elementos.map((el, i) => (
+                  <tr key={i}>
+                    <td className="px-3 py-1.5 text-[#1A1A1A]">{el.nombre}</td>
+                    <td className="px-3 py-1.5 text-center font-mono">{el.piezasPorSaco}</td>
+                    <td className="px-3 py-1.5 text-center font-mono">
+                      {el.ancho > 0 || el.largo > 0
+                        ? `${el.ancho} × ${el.largo} ${el.unidad}`
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-center text-[#6B716C]">{el.grupo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* PDF del diseño */}
+      <div>
+        <h3 className="text-xs font-semibold text-[#1A1A1A] uppercase tracking-wide mb-2">
+          PDF del diseño
+        </h3>
+        {diseno.pdf_url ? (
+          <PdfViewer url={diseno.pdf_url} />
+        ) : (
+          <p className="text-xs text-[#6B5418] bg-[#FFF7E8] border border-[#E8C88A] rounded-lg px-3 py-2">
+            Este diseño todavía no tiene PDF. Edítalo para subirlo.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Dato({ label, valor, mono }: { label: string; valor: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-[#8A9A8C] mb-0.5">{label}</div>
+      <div className={`text-sm font-semibold text-[#1A1A1A] ${mono ? 'font-mono' : ''}`}>{valor}</div>
     </div>
   );
 }

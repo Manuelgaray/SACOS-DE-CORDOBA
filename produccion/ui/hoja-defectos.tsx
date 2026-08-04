@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useProduccion } from '@/produccion/produccion-store';
+import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { AREA_LABELS } from '@/compartido/mock-data';
 import { ConfirmModal } from '@/compartido/ui/Modal';
@@ -258,6 +259,7 @@ export default function HojaDefectosPage() {
           Hoja de {AREA_LABELS.calidad}: los sacos con defecto detectados en las mesas y cómo se
           resolvieron. Es registro de calidad, no cuenta para el avance del área.
         </p>
+        <BotonImprimir orden={orden.id} hoja="defectos" permitido={puede} />
       </div>
 
       <PestanasHoja pestanas={pestanasCalidad(orden.id)} activa={PESTANA_DEFECTOS} />

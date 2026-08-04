@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useProduccion } from '@/produccion/produccion-store';
+import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { AREA_LABELS } from '@/compartido/mock-data';
 import type { AvanceArea } from '@/produccion/produccion';
@@ -258,6 +259,7 @@ export default function HojaEmpaquePage() {
           arman en tarimas. Cuenta con el botón <span className="font-semibold">+</span> conforme
           entran a la prensa y anota el peso de cada tarima.
         </p>
+        <BotonImprimir orden={orden.id} hoja="empaque" permitido={puede} />
       </div>
 
       {bloqueo && (

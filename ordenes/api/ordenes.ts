@@ -98,6 +98,35 @@ export async function POST(req: Request) {
   const elementos = normalizarElementos(body.corte_elementos);
   const corteJson = elementos.length > 0 ? JSON.stringify(elementos) : null;
 
+  // ── El diseño del spec se completa solo ────────────────────────────────────
+  // Si el spec ya tenía diseño registrado en Clientes, no se toca: ese es la
+  // fuente de la verdad. Pero si le faltaba algo (specs viejos, o dados de alta
+  // desde aquí), esta orden lo llena, y la siguiente ya lo hereda.
+  await query(
+    `UPDATE specs SET
+       medida          = CASE WHEN medida    = ''   THEN $2 ELSE medida    END,
+       carga_lbs       = CASE WHEN carga_lbs = 0    THEN $3 ELSE carga_lbs END,
+       tipo_saco       = CASE WHEN tipo_saco = ''   THEN $4 ELSE tipo_saco END,
+       grado           = CASE WHEN grado     = ''   THEN $5 ELSE grado     END,
+       corte_elementos = COALESCE(corte_elementos, $6::jsonb),
+       pdf_data        = COALESCE(pdf_data, $7),
+       pdf_nombre      = COALESCE(pdf_nombre, $8),
+       registrado_por  = COALESCE(registrado_por, $9),
+       actualizado_en  = now()
+     WHERE UPPER(spec) = $1`,
+    [
+      specCap,
+      str('medida'),
+      num('carga_lbs'),
+      str('tipo_saco'),
+      str('grado'),
+      corteJson,
+      pdfBuf,
+      String(body.pdf_nombre ?? '').trim() || null,
+      elaboradoPor,
+    ],
+  );
+
   const { rows } = await query<OrdenRow>(
     `INSERT INTO ordenes (
        id, numero_orden, cliente, spec, medida, cantidad, carga_lbs, tipo_saco,

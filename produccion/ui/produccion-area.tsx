@@ -73,7 +73,8 @@ export default function CapturaAreaPage() {
             {AREA_LABELS[area]}
           </span>
           <h1 className="text-xl font-semibold text-[#1A1A1A]">
-            {area === 'corte' ? 'Hojas de corte'
+            {area === 'almacen' ? 'Salida y entrega de materiales'
+              : area === 'corte' ? 'Hojas de corte'
               : area === 'small' || area === 'tips' ? 'Control de material'
               : area === 'big' || area === 'tapa' ? 'Raw Bag y Tapa'
               : area === 'calidad' ? 'Control de mesas de calidad'

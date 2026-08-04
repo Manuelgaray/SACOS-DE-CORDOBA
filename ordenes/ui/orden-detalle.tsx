@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AREA_LABELS, AREA_COLORS, formatDate, formatDateShort, formatFechaHora, type OrderStatus } from '@/compartido/mock-data';
 import { useProduccion } from '@/produccion/produccion-store';
 import { progresoArea, progresoComponente, progresoOrden, areaEnCurso, rutaHojaDeArea } from '@/produccion/produccion';
+import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { ConfirmModal } from '@/compartido/ui/Modal';
 import ExplosionMateriales from '@/explosion-materiales/ui/ExplosionMateriales';
@@ -21,10 +22,21 @@ const STATUS_MAP = {
 const ESTADO_OPCIONES: OrderStatus[] = ['activa', 'programada', 'pausada', 'terminada', 'cancelada'];
 
 export default function OrdenDetallePage({ params }: { params: { id: string } }) {
-  const { ordenes, avances, estados, ready, setEstado, patchOrden } = useProduccion();
+  const { ordenes, avances, estados, ready, setEstado, patchOrden, cargarOrden } = useProduccion();
   const { sesion } = useSession();
   const esAdmin = sesion?.rol === 'admin';
   const orden = ordenes.find(o => o.id === params.id);
+
+  // El store solo trae lo activo y lo reciente. Si se abre una orden vieja del
+  // histórico (o un enlace directo), se pide por id antes de darla por perdida.
+  const [buscandoOrden, setBuscandoOrden] = useState(false);
+  const intentado = useRef(false);
+  useEffect(() => {
+    if (!ready || orden || intentado.current) return;
+    intentado.current = true;
+    setBuscandoOrden(true);
+    cargarOrden(params.id).finally(() => setBuscandoOrden(false));
+  }, [ready, orden, params.id, cargarOrden]);
 
   // Autorización de la orden (solo admin firma).
   const [confirmarAutorizar, setConfirmarAutorizar] = useState(false);
@@ -57,7 +69,7 @@ export default function OrdenDetallePage({ params }: { params: { id: string } })
     }
   }
 
-  if (!ready) {
+  if (!ready || buscandoOrden) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[40vh] text-sm text-[#6B716C]">
         <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
@@ -125,6 +137,14 @@ export default function OrdenDetallePage({ params }: { params: { id: string } })
                 )}
               </div>
               <p className="text-sm text-[#6B716C] mt-0.5">{orden.cliente}</p>
+              {/* La carátula (VEN-FOR-005) es el documento que acompaña a la
+                  orden en planta: se imprime tal cual el preimpreso. */}
+              <BotonImprimir
+                orden={orden.id}
+                hoja="caratula"
+                texto="Descargar carátula"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#1A6B4A] border border-brand-green/40 bg-white hover:bg-brand-green-50 rounded-lg px-3 py-1.5 transition-colors"
+              />
             </div>
             <div className="text-right">
               {/* Estado: solo un admin puede cambiarlo; los demás lo ven fijo */}
@@ -337,7 +357,8 @@ function InfoCell({ label, value, mono }: { label: string; value: string; mono?:
   return (
     <div className="px-4 py-3">
       <div className="text-[10px] uppercase tracking-wide text-[#8A9A8C] font-medium mb-0.5">{label}</div>
-      <div className={`text-sm font-semibold text-[#1A1A1A] ${mono ? 'font-mono' : ''}`}>{value}</div>
+      {/* whitespace-pre-line: "Embarcar a" puede traer varios destinos, uno por renglón. */}
+      <div className={`text-sm font-semibold text-[#1A1A1A] whitespace-pre-line ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
   );
 }

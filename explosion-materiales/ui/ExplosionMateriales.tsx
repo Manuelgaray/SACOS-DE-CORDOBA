@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useSession, canUpload } from '@/autenticacion/auth';
 import { useProduccion } from '@/produccion/produccion-store';
 import NumeroInput from '@/compartido/ui/NumeroInput';
@@ -48,6 +48,7 @@ export function nuevaFila(el?: ElementoCorte): ElementoCorte {
 export function TablaCorteEditable({
   elementos,
   tipoSaco,
+  bloqueada = false,
   onActualizar,
   onAgregar,
   onQuitar,
@@ -56,6 +57,9 @@ export function TablaCorteEditable({
   // Tipo de saco de la orden: sus elementos de plantilla también se ofrecen en
   // "Agregar" (por si se elimina uno por error, se recupera con un clic).
   tipoSaco?: string;
+  // Con la tabla bloqueada los campos son de solo lectura: así nadie mueve las
+  // cuentas de una orden ya guardada al pasar por encima con el cursor.
+  bloqueada?: boolean;
   onActualizar: (idx: number, campo: keyof ElementoCorte, valor: string) => void;
   onAgregar: (el?: ElementoCorte) => void;
   onQuitar: (idx: number) => void;
@@ -69,26 +73,28 @@ export function TablaCorteEditable({
   return (
     <div className="space-y-3">
       {/* Agregar opcionales con un clic */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] text-[#8A9A8C] mr-1">Agregar:</span>
-        {opciones.map((op) => (
+      {!bloqueada && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-[#8A9A8C] mr-1">Agregar:</span>
+          {opciones.map((op) => (
+            <button
+              key={op.nombre}
+              type="button"
+              onClick={() => onAgregar(op)}
+              className="text-[11px] text-[#1A1A1A] border border-dashed border-[#D6DED7] hover:border-brand-green/50 hover:bg-brand-green-50/40 rounded-md px-2 py-1 transition-colors"
+            >
+              + {op.nombre}
+            </button>
+          ))}
           <button
-            key={op.nombre}
             type="button"
-            onClick={() => onAgregar(op)}
-            className="text-[11px] text-[#1A1A1A] border border-dashed border-[#D6DED7] hover:border-brand-green/50 hover:bg-brand-green-50/40 rounded-md px-2 py-1 transition-colors"
+            onClick={() => onAgregar()}
+            className="text-[11px] text-[#1A1A1A] border border-[#E2E5E2] hover:bg-[#F6F8F1] rounded-md px-2 py-1 transition-colors"
           >
-            + {op.nombre}
+            + Fila vacía
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => onAgregar()}
-          className="text-[11px] text-[#1A1A1A] border border-[#E2E5E2] hover:bg-[#F6F8F1] rounded-md px-2 py-1 transition-colors"
-        >
-          + Fila vacía
-        </button>
-      </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto -mx-1 px-1">
         <table className="w-full min-w-[560px] text-sm border-collapse">
@@ -107,30 +113,32 @@ export function TablaCorteEditable({
             {elementos.map((el, idx) => (
               <tr key={idx}>
                 <td className="py-1.5 pr-2">
-                  <input className={inCls} value={el.nombre} onChange={e => onActualizar(idx, 'nombre', e.target.value)} placeholder="Ej. Laterales" />
+                  <input disabled={bloqueada} className={inCls} value={el.nombre} onChange={e => onActualizar(idx, 'nombre', e.target.value)} placeholder="Ej. Laterales" />
                 </td>
                 <td className="py-1.5 px-2">
-                  <select className={inCls} value={el.grupo} onChange={e => onActualizar(idx, 'grupo', e.target.value)}>
+                  <select disabled={bloqueada} className={inCls} value={el.grupo} onChange={e => onActualizar(idx, 'grupo', e.target.value)}>
                     {GRUPOS.map(g => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
                   </select>
                 </td>
                 <td className="py-1.5 px-2">
-                  <NumeroInput className={`${inCls} font-mono`} valor={el.piezasPorSaco} onValor={v => onActualizar(idx, 'piezasPorSaco', v)} />
+                  <NumeroInput disabled={bloqueada} className={`${inCls} font-mono`} valor={el.piezasPorSaco} onValor={v => onActualizar(idx, 'piezasPorSaco', v)} />
                 </td>
                 <td className="py-1.5 px-2">
-                  <NumeroInput step="0.01" className={`${inCls} font-mono`} valor={el.ancho} onValor={v => onActualizar(idx, 'ancho', v)} />
+                  <NumeroInput disabled={bloqueada} step="0.01" className={`${inCls} font-mono`} valor={el.ancho} onValor={v => onActualizar(idx, 'ancho', v)} />
                 </td>
                 <td className="py-1.5 px-2">
-                  <NumeroInput step="0.01" className={`${inCls} font-mono`} valor={el.largo} onValor={v => onActualizar(idx, 'largo', v)} />
+                  <NumeroInput disabled={bloqueada} step="0.01" className={`${inCls} font-mono`} valor={el.largo} onValor={v => onActualizar(idx, 'largo', v)} />
                 </td>
                 <td className="py-1.5 px-2">
-                  <select className={inCls} value={el.unidad} onChange={e => onActualizar(idx, 'unidad', e.target.value)}>
+                  <select disabled={bloqueada} className={inCls} value={el.unidad} onChange={e => onActualizar(idx, 'unidad', e.target.value)}>
                     <option value="in">pulg</option>
                     <option value="cm">cm</option>
                   </select>
                 </td>
                 <td className="py-1.5 pl-2 text-center">
-                  <button type="button" onClick={() => onQuitar(idx)} title="Quitar" className="text-[#8A9A8C] hover:text-red-600 transition-colors">✕</button>
+                  {!bloqueada && (
+                    <button type="button" onClick={() => onQuitar(idx)} title="Quitar" className="text-[#8A9A8C] hover:text-red-600 transition-colors">✕</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -198,7 +206,12 @@ export function ExplosionIntro({ cantidad }: { cantidad: number }) {
 // ─── Sección de explosión en el DETALLE de la orden ─────────────────────────────
 export default function ExplosionMateriales({ orden }: { orden: Orden }) {
   const { sesion } = useSession();
+  // Ver la tabla: admin y diseño (como siempre).
   const editor = canUpload(sesion?.rol);
+  // MODIFICARLA en una orden ya creada: solo el admin. Cambiarla mueve las
+  // cuentas y los puntos de reporte de todas las áreas, así que no es algo que
+  // deba poder tocarse de paso. El servidor valida lo mismo.
+  const puedeEditar = sesion?.rol === 'admin';
   const { setCorteElementos, setAvancesOrden } = useProduccion();
 
   const [elementos, setElementos] = useState<ElementoCorte[]>(
@@ -208,6 +221,26 @@ export default function ExplosionMateriales({ orden }: { orden: Orden }) {
   const [leyendo, setLeyendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'error' | 'info'; texto: string } | null>(null);
+
+  // La explosión entra BLOQUEADA: pasar por la orden no debe mover las cuentas.
+  // Solo se libera al pulsar "Editar", y se vuelve a cerrar al guardar.
+  const [editando, setEditando] = useState(false);
+  // Copia con la que se entró a editar, para poder cancelar sin guardar.
+  const respaldo = useRef<ElementoCorte[]>([]);
+
+  function empezarEdicion() {
+    if (!puedeEditar) return;
+    respaldo.current = elementos;
+    setMsg(null);
+    setEditando(true);
+  }
+
+  function cancelarEdicion() {
+    setElementos(respaldo.current);
+    setTextoLeido('');
+    setMsg(null);
+    setEditando(false);
+  }
 
   const resultado = useMemo(
     () => calcularExplosion(elementos, orden.cantidad),
@@ -268,6 +301,8 @@ export default function ExplosionMateriales({ orden }: { orden: Orden }) {
         tipo: 'ok',
         texto: 'Explosión guardada. Los puntos de reporte de TODAS las áreas quedaron sincronizados con estos elementos.',
       });
+      // Guardado correcto: se vuelve a bloquear.
+      setEditando(false);
     } catch {
       setMsg({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
     } finally {
@@ -297,30 +332,73 @@ export default function ExplosionMateriales({ orden }: { orden: Orden }) {
       {editor && (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={leerDelPdf}
-              disabled={leyendo || !orden.pdf_url}
-              title={!orden.pdf_url ? 'Esta orden no tiene PDF' : undefined}
-              className="flex items-center gap-1.5 text-xs font-medium text-[#1A1A1A] border border-brand-green/30 hover:bg-brand-green-50 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {leyendo ? 'Leyendo PDF…' : 'Leer del PDF'}
-            </button>
-            <button
-              type="button"
-              onClick={guardar}
-              disabled={guardando}
-              className="ml-auto flex items-center gap-1.5 bg-brand-green text-white text-xs font-semibold px-4 py-1.5 rounded-md hover:bg-brand-green-dark transition-colors disabled:opacity-60"
-            >
-              {guardando ? 'Guardando…' : 'Guardar'}
-            </button>
+            {editando ? (
+              <>
+                <button
+                  type="button"
+                  onClick={leerDelPdf}
+                  disabled={leyendo || !orden.pdf_url}
+                  title={!orden.pdf_url ? 'Esta orden no tiene PDF' : undefined}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[#1A1A1A] border border-brand-green/30 hover:bg-brand-green-50 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {leyendo ? 'Leyendo PDF…' : 'Leer del PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelarEdicion}
+                  disabled={guardando}
+                  className="ml-auto text-xs font-medium text-[#6B716C] hover:text-[#1A1A1A] border border-[#E2E5E2] hover:bg-[#F6F8F1] rounded-md px-3 py-1.5 transition-colors disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={guardar}
+                  disabled={guardando}
+                  className="flex items-center gap-1.5 bg-brand-green text-white text-xs font-semibold px-4 py-1.5 rounded-md hover:bg-brand-green-dark transition-colors disabled:opacity-60"
+                >
+                  {guardando ? 'Guardando…' : 'Guardar'}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-[#6B716C]">
+                  <svg width="12" height="12" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                    <rect x="3.5" y="8" width="11" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M6 8V6a3 3 0 016 0v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  {puedeEditar
+                    ? 'Bloqueada para que no se mueva sin querer.'
+                    : 'Solo un administrador puede modificar la explosión de una orden.'}
+                </span>
+                {puedeEditar && (
+                  <button
+                    type="button"
+                    onClick={empezarEdicion}
+                    className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-[#1A6B4A] border border-brand-green/40 hover:bg-brand-green-50 rounded-md px-4 py-1.5 transition-colors"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M11 2.5l2.5 2.5L6 12.5 3 13l.5-3L11 2.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                    </svg>
+                    Editar
+                  </button>
+                )}
+              </>
+            )}
           </div>
 
           {msg && (
             <div className={`text-sm text-[#1A1A1A] rounded-lg border px-3 py-2 ${msgCls}`}>{msg.texto}</div>
           )}
 
-          <TablaCorteEditable elementos={elementos} tipoSaco={orden.tipo_saco} onActualizar={actualizar} onAgregar={agregar} onQuitar={quitar} />
+          <TablaCorteEditable
+            elementos={elementos}
+            tipoSaco={orden.tipo_saco}
+            bloqueada={!editando}
+            onActualizar={actualizar}
+            onAgregar={agregar}
+            onQuitar={quitar}
+          />
           <TextoLeido texto={textoLeido} />
         </>
       )}

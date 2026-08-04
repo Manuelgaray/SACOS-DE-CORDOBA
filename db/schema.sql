@@ -37,9 +37,22 @@ CREATE TABLE IF NOT EXISTS clientes (
 -- Unicidad sin distinguir mayúsculas/acentos de dedo ("BULK LIFT" vs "Bulk Lift").
 CREATE UNIQUE INDEX IF NOT EXISTS clientes_nombre_lower ON clientes (LOWER(nombre));
 
+-- Un spec no es solo un nombre: es el DISEÑO del saco. Guarda sus
+-- especificaciones, su explosión de materiales y el PDF del diseño, para que al
+-- crear una orden ya venga todo adelantado.
 CREATE TABLE IF NOT EXISTS specs (
-  spec     TEXT PRIMARY KEY,
-  cliente  TEXT NOT NULL REFERENCES clientes(nombre) ON UPDATE CASCADE ON DELETE CASCADE
+  spec            TEXT PRIMARY KEY,
+  cliente         TEXT NOT NULL REFERENCES clientes(nombre) ON UPDATE CASCADE ON DELETE CASCADE,
+  medida          TEXT NOT NULL DEFAULT '',
+  carga_lbs       INTEGER NOT NULL DEFAULT 0,
+  tipo_saco       TEXT NOT NULL DEFAULT '',
+  grado           TEXT NOT NULL DEFAULT '',
+  corte_elementos JSONB,
+  pdf_data        BYTEA,
+  pdf_nombre      TEXT,
+  pdf_mime        TEXT DEFAULT 'application/pdf',
+  registrado_por  TEXT,
+  actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS specs_spec_upper ON specs (UPPER(spec));
 CREATE INDEX IF NOT EXISTS specs_cliente ON specs (cliente);
@@ -277,6 +290,52 @@ CREATE TABLE IF NOT EXISTS hoja_defectos (
   creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS hoja_defectos_orden ON hoja_defectos (orden_id, fecha, id);
+
+-- ─── Salida y entrega de materiales a producción (Almacén) ────────────────────
+-- Una fila por ENTREGA (la hoja física) y una por renglón de material.
+-- `resumen` marca las filas sombreadas del papel: el total por familia de
+-- material, sin etiqueta ni factura. El avance del área son los sacos cuyo
+-- material ya salió a producción.
+CREATE TABLE IF NOT EXISTS hoja_almacen (
+  id                    BIGSERIAL PRIMARY KEY,
+  orden_id              TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  fecha                 DATE NOT NULL DEFAULT CURRENT_DATE,
+  cantidad_entregada    INTEGER NOT NULL DEFAULT 0,
+  firma_entrega         TEXT NOT NULL DEFAULT '',
+  firma_recepcion_corte TEXT NOT NULL DEFAULT '',
+  firma_recepcion_prod  TEXT NOT NULL DEFAULT '',
+  firma_recepcion_alm   TEXT NOT NULL DEFAULT '',
+  firma_entrega_corte   TEXT NOT NULL DEFAULT '',
+  capturado_por         TEXT,
+  creado_en             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_almacen_orden ON hoja_almacen (orden_id, fecha, id);
+
+-- Un renglón por ROLLO entregado. La familia de tela se deduce del código
+-- (SCFLF6CW48RAF → 6CW48), así que aquí no se captura ni se repite.
+CREATE TABLE IF NOT EXISTS hoja_almacen_material (
+  id        BIGSERIAL PRIMARY KEY,
+  hoja_id   BIGINT NOT NULL REFERENCES hoja_almacen(id) ON DELETE CASCADE,
+  material  TEXT NOT NULL DEFAULT '',
+  etiqueta  TEXT NOT NULL DEFAULT '',
+  factura   TEXT NOT NULL DEFAULT '',
+  tag       TEXT NOT NULL DEFAULT '',
+  cantidad  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  unidad    TEXT NOT NULL DEFAULT '',
+  creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hoja_almacen_material_hoja ON hoja_almacen_material (hoja_id, id);
+
+-- Consumo y devolución van POR FAMILIA: es donde los anota el papel (el
+-- renglón sombreado). La cantidad entregada de la familia NO se guarda: es la
+-- suma de sus rollos, calculada al vuelo.
+CREATE TABLE IF NOT EXISTS hoja_almacen_consumo (
+  hoja_id          BIGINT NOT NULL REFERENCES hoja_almacen(id) ON DELETE CASCADE,
+  familia          TEXT NOT NULL,
+  consumo_esperado NUMERIC(12,2) NOT NULL DEFAULT 0,
+  devolucion_real  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  PRIMARY KEY (hoja_id, familia)
+);
 
 -- ─── Control de tarimas y sacos en prensa (Empaque) ────────────────────────────
 -- Una fila por TARIMA: su fecha, número consecutivo, el conteo de sacos

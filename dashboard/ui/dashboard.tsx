@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AREA_LABELS, AREA_COLORS, formatDateShort, type OrderStatus } from '@/compartido/mock-data';
 import { useProduccion } from '@/produccion/produccion-store';
@@ -18,6 +19,17 @@ export default function DashboardPage() {
   const { ordenes, avances, estados, ready, setEstado } = useProduccion();
   const { sesion } = useSession();
   const esAdmin = sesion?.rol === 'admin'; // solo el admin cambia estados
+
+  // Fecha de hoy con día, mes y año. Se calcula ya montado para que el texto
+  // del servidor y el del navegador nunca discrepen (p. ej. cerca de medianoche).
+  const [fechaHoy, setFechaHoy] = useState('');
+  useEffect(() => {
+    setFechaHoy(
+      new Date().toLocaleDateString('es-MX', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      }),
+    );
+  }, []);
 
   if (!ready) return <Cargando />;
 
@@ -39,7 +51,9 @@ export default function DashboardPage() {
     <div className="p-4 lg:p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl lg:text-2xl font-semibold text-[#1A1A1A] mb-0.5">Dashboard</h1>
-        <p className="text-sm text-[#6B716C]">Resumen de producción — mayo 2026</p>
+        <p className="text-sm text-[#6B716C] first-letter:uppercase">
+          Resumen de producción{fechaHoy && ` — ${fechaHoy}`}
+        </p>
       </div>
 
       {/* Líneas de producción */}

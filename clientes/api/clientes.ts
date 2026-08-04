@@ -4,8 +4,10 @@ import { actorDe } from '@/autenticacion/auth-server';
 
 export const runtime = 'nodejs';
 
-// GET /api/clientes — registro maestro: cada cliente con sus specs.
+// GET /api/clientes — registro maestro: cada cliente con sus diseños (specs).
 // Cualquier usuario autenticado puede consultarlo (alimenta el autocompletado).
+// `specs` se conserva como lista de nombres (autocompletado) y `disenos` trae
+// el detalle de cada uno para la pantalla de Clientes.
 export async function GET(req: Request) {
   const actor = await actorDe(req);
   if (!actor) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
@@ -19,7 +21,29 @@ export async function GET(req: Request) {
       ORDER BY c.nombre`,
   );
 
-  const clientes = rows.map((r) => ({ nombre: r.nombre, specs: r.specs ?? [] }));
+  const { rows: disenos } = await query<{
+    spec: string; cliente: string; tipo_saco: string; medida: string;
+    carga_lbs: number; grado: string; tiene_pdf: boolean; tiene_explosion: boolean;
+  }>(
+    `SELECT spec, cliente, tipo_saco, medida, carga_lbs, grado,
+            (pdf_data IS NOT NULL) AS tiene_pdf,
+            (corte_elementos IS NOT NULL) AS tiene_explosion
+       FROM specs
+      ORDER BY spec`,
+  );
+
+  const porCliente = new Map<string, typeof disenos>();
+  for (const d of disenos) {
+    const lista = porCliente.get(d.cliente) ?? [];
+    lista.push({ ...d, carga_lbs: Number(d.carga_lbs) });
+    porCliente.set(d.cliente, lista);
+  }
+
+  const clientes = rows.map((r) => ({
+    nombre: r.nombre,
+    specs: r.specs ?? [],
+    disenos: porCliente.get(r.nombre) ?? [],
+  }));
   return NextResponse.json({ clientes });
 }
 

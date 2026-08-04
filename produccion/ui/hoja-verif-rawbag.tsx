@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useProduccion } from '@/produccion/produccion-store';
+import { useProduccion } from '@/produccion/produccion-store';import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { ConfirmModal } from '@/compartido/ui/Modal';
 import PestanasHoja from '@/produccion/ui/PestanasHoja';
@@ -254,6 +254,7 @@ export default function HojaVerifRawbagPage() {
         <p className="text-sm text-[#6B716C]">
           Control de calidad del área de Big. Es registro de verificación: no modifica el avance de la orden.
         </p>
+        <BotonImprimir orden={orden.id} hoja="verif-rawbag" permitido={puede} />
       </div>
 
       <PestanasHoja pestanas={pestanas} activa="Verificación de área" />

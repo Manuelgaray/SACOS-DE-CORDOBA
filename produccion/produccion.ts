@@ -50,23 +50,13 @@ function elementosBase(orden: OrdenBase): PlantillaItem[] {
 }
 
 
-// ALMACÉN: surte la materia prima según los materiales de la orden — rollos de
-// tela (uno por elemento de tela), discos de cinturones y bobinas de cintas y
-// cordeles. Cada material se reporta como surtido (meta 1).
-function plantillaAlmacen(base: PlantillaItem[]): PlantillaItem[] {
-  const items: PlantillaItem[] = [];
-  for (const el of base) {
-    if ((el.grupo ?? 'tela') === 'tela') {
-      items.push({ nombre: `Rollos de tela — ${el.nombre}`, mult: 0, metaFija: 1 });
-    }
-  }
-  if (base.some((e) => e.grupo === 'cinturones')) {
-    items.push({ nombre: 'Discos de cinturones surtidos', mult: 0, metaFija: 1 });
-  }
-  if (base.some((e) => e.grupo === 'cintas')) {
-    items.push({ nombre: 'Bobinas de cintas y cordeles surtidas', mult: 0, metaFija: 1 });
-  }
-  return items;
+// ALMACÉN: surte la materia prima a producción. Se captura en el FORMATO DE
+// SALIDA Y ENTREGA DE MATERIALES: cada entrega anota los sacos que cubre, y el
+// avance del área son los sacos cuyo material ya salió al piso.
+export const PUNTO_HOJA_ALMACEN = 'Material entregado a producción';
+
+function plantillaAlmacen(): PlantillaItem[] {
+  return [{ nombre: PUNTO_HOJA_ALMACEN, mult: 1 }];
 }
 
 // SMALL y TIPS comparten la HOJA DE CONTROL DE MATERIAL: su avance no se mide
@@ -176,6 +166,7 @@ export function elementosCorteDeOrden(orden: Pick<Orden, 'corte_elementos'>): Pl
 // lista: el detalle de la orden y la lista del área la comparten.
 export function rutaHojaDeArea(area: Area, ordenId: string): string | null {
   switch (area) {
+    case 'almacen': return `/produccion/hoja-almacen?orden=${ordenId}`;
     case 'corte':   return `/produccion/hoja-corte?orden=${ordenId}`;
     case 'small':
     case 'tips':    return `/produccion/hoja-material?orden=${ordenId}`;
@@ -191,7 +182,7 @@ export function rutaHojaDeArea(area: Area, ordenId: string): string | null {
 function plantillaArea(area: Area, orden: OrdenBase): PlantillaItem[] {
   const base = elementosBase(orden);
   switch (area) {
-    case 'almacen': return plantillaAlmacen(base);
+    case 'almacen': return plantillaAlmacen();
     case 'corte':   return base;
     case 'small':   return plantillaHojaMaterial();
     case 'tips':    return plantillaHojaMaterial();

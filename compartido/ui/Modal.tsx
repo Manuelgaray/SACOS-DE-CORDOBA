@@ -10,11 +10,14 @@
 
 import { useEffect } from 'react';
 
-type Size = 'sm' | 'md' | 'lg';
+// 'xl' es para contenido que se tiene que ver en grande (planos en PDF):
+// ocupa casi toda la ventana en vez de quedarse en una tarjeta angosta.
+type Size = 'sm' | 'md' | 'lg' | 'xl';
 const SIZE_CLS: Record<Size, string> = {
   sm: 'max-w-md',
   md: 'max-w-xl',
   lg: 'max-w-2xl',
+  xl: 'max-w-[96rem]',
 };
 
 export function Modal({
@@ -46,7 +49,9 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#143822]/40 backdrop-blur-[2px]"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-[#143822]/40 backdrop-blur-[2px] ${
+        size === 'xl' ? 'p-2 sm:p-4' : 'p-4'
+      }`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !bloqueado) onClose();
       }}
@@ -55,7 +60,9 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${SIZE_CLS[size]} max-h-[85vh] overflow-y-auto bg-white rounded-2xl border border-[#E2E5E2] shadow-card animate-modal-in`}
+        className={`w-full ${SIZE_CLS[size]} ${
+          size === 'xl' ? 'max-h-[96vh]' : 'max-h-[85vh]'
+        } overflow-y-auto bg-white rounded-2xl border border-[#E2E5E2] shadow-card animate-modal-in`}
       >
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[#E8EFE9]">
           <h2 className="text-base font-semibold text-[#1A1A1A]">{title}</h2>
@@ -71,7 +78,7 @@ export function Modal({
             </svg>
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className={size === 'xl' ? 'p-3 sm:p-5' : 'p-5'}>{children}</div>
       </div>
     </div>
   );

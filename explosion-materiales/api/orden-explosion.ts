@@ -17,15 +17,19 @@ async function rolDe(email: string): Promise<string | undefined> {
 // explosión define qué reporta almacén (materiales), corte (piezas), small
 // (dobladillos), tips (costuras/ensambles), big (uniones) y tapa (cierre).
 // El avance ya reportado se conserva emparejando por nombre del punto.
-// Solo admin/diseño pueden editar; el header `x-user-email` identifica al usuario.
+// SOLO UN ADMINISTRADOR puede modificarla en una orden ya creada: cambiarla
+// mueve las cuentas y los puntos de reporte de todas las áreas.
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
   const rol = await rolDe(email);
   if (!email || !rol) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }
-  if (rol !== 'admin' && rol !== 'diseno') {
-    return NextResponse.json({ error: 'No tienes permiso para editar el corte' }, { status: 403 });
+  if (rol !== 'admin') {
+    return NextResponse.json(
+      { error: 'Solo un administrador puede modificar la explosión de una orden' },
+      { status: 403 },
+    );
   }
 
   let body: { elementos?: unknown };

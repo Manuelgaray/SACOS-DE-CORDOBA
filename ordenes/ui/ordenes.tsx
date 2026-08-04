@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   AREA_LABELS, AREA_COLORS,
-  type OrderStatus,
+  type Orden, type OrderStatus,
   formatDateShort,
 } from '@/compartido/mock-data';
-import { useProduccion } from '@/produccion/produccion-store';
-import { progresoOrden, areaEnCurso } from '@/produccion/produccion';
+import { progresoOrden, areaEnCurso, type AvanceArea } from '@/produccion/produccion';
 import { useSession, canUpload } from '@/autenticacion/auth';
+
+// Órdenes por página. El histórico no se carga completo: el servidor manda solo
+// la página visible (ver ordenes/api/ordenes-listado.ts).
+const POR_PAGINA = 15;
 
 const STATUS_MAP = {
   activa:     { bg: 'bg-brand-green-light',  text: 'text-[#1A1A1A]',       label: 'Activa' },
@@ -27,40 +30,80 @@ const TABS: { key: 'todas' | OrderStatus; label: string }[] = [
   { key: 'terminada',  label: 'Terminadas' },
 ];
 
+const CONTEOS_VACIOS: Record<string, number> = {
+  todas: 0, activa: 0, programada: 0, pausada: 0, terminada: 0, cancelada: 0,
+};
+
 export default function OrdenesPage() {
   const [tab, setTab]       = useState<'todas' | OrderStatus>('todas');
   const [search, setSearch] = useState('');
-  const { ordenes, avances, estados } = useProduccion();
+  const [pagina, setPagina] = useState(1);
   const { sesion } = useSession();
   const puedeSubir = canUpload(sesion?.rol);
 
-  const estadoDe = (id: string): OrderStatus => estados[id] ?? ordenes.find(o => o.id === id)!.status;
+  // Solo vive en memoria la página que se está viendo.
+  const [ordenes, setOrdenes] = useState<Orden[]>([]);
+  const [avances, setAvances] = useState<Record<string, AvanceArea[]>>({});
+  const [conteos, setConteos] = useState(CONTEOS_VACIOS);
+  const [paginas, setPaginas] = useState(1);
+  const [total, setTotal]     = useState(0);
+  const [cargando, setCargando] = useState(true);
 
-  const counts = useMemo(() => ({
-    todas:      ordenes.length,
-    activa:     ordenes.filter(o => estadoDe(o.id) === 'activa').length,
-    programada: ordenes.filter(o => estadoDe(o.id) === 'programada').length,
-    pausada:    ordenes.filter(o => estadoDe(o.id) === 'pausada').length,
-    terminada:  ordenes.filter(o => estadoDe(o.id) === 'terminada').length,
-    cancelada:  ordenes.filter(o => estadoDe(o.id) === 'cancelada').length,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [estados, ordenes]);
+  // La búsqueda espera a que dejes de teclear antes de consultar al servidor.
+  const [busqueda, setBusqueda] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => { setBusqueda(search.trim()); setPagina(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const filtered = useMemo(() => {
-    let list = tab === 'todas' ? ordenes : ordenes.filter(o => estadoDe(o.id) === tab);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(o =>
-        o.numero_orden.toLowerCase().includes(q) ||
-        o.cliente.toLowerCase().includes(q) ||
-        o.spec.toLowerCase().includes(q) ||
-        o.tipo_saco.toLowerCase().includes(q) ||
-        (o.orden_cliente ?? '').toLowerCase().includes(q)
-      );
+  useEffect(() => { setPagina(1); }, [tab]);
+
+  const cargar = useCallback(async () => {
+    if (!sesion?.email) return;
+    setCargando(true);
+    try {
+      const p = new URLSearchParams({ pagina: String(pagina), limite: String(POR_PAGINA) });
+      if (tab !== 'todas') p.set('estado', tab);
+      if (busqueda) p.set('q', busqueda);
+      const res = await fetch(`/api/ordenes?${p.toString()}`, {
+        headers: { 'x-user-email': sesion.email },
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      setOrdenes(d.ordenes as Orden[]);
+      setAvances(d.avances as Record<string, AvanceArea[]>);
+      setConteos({ ...CONTEOS_VACIOS, ...d.conteos });
+      setPaginas(d.paginas);
+      setTotal(d.total);
+      // El servidor acota la página si te pasaste del final (p. ej. al filtrar).
+      if (d.pagina !== pagina) setPagina(d.pagina);
+    } catch {
+      /* sin red: se conserva en pantalla lo que ya se había cargado */
+    } finally {
+      setCargando(false);
     }
-    return list;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, search, estados, ordenes]);
+  }, [sesion?.email, pagina, tab, busqueda]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // Al volver a la pestaña se recarga: otro usuario pudo crear o cerrar órdenes.
+  useEffect(() => {
+    const alVolver = () => { if (document.visibilityState === 'visible') cargar(); };
+    window.addEventListener('focus', alVolver);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      window.removeEventListener('focus', alVolver);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, [cargar]);
+
+  const estadoDe = (id: string): OrderStatus =>
+    ordenes.find(o => o.id === id)?.status ?? 'activa';
+  const counts = conteos;
+  const filtered = ordenes;
+  const desde = total === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1;
+  const hasta = Math.min(pagina * POR_PAGINA, total);
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">
@@ -70,7 +113,10 @@ export default function OrdenesPage() {
             Órdenes de producción
           </h1>
           <p className="text-sm text-[#6B716C]">
-            {filtered.length} {filtered.length === 1 ? 'orden' : 'órdenes'} · mayo 2026
+            {total === 0
+              ? 'Sin órdenes'
+              : <>Mostrando {desde}–{hasta} de {total} {total === 1 ? 'orden' : 'órdenes'}</>}
+            {cargando && <span className="text-[#8A9A8C]"> · actualizando…</span>}
           </p>
         </div>
         {puedeSubir && (
@@ -165,7 +211,11 @@ export default function OrdenesPage() {
                       <td className="px-4 py-3">
                         <div className="text-sm text-[#1A1A1A] font-medium">{orden.cliente}</div>
                         {orden.embarcar_a && (
-                          <div className="text-[10px] text-[#8A9A8C]">{orden.embarcar_a}</div>
+                          // En la tabla los destinos van en una línea para no
+                          // desbalancear los renglones; completos en el detalle.
+                          <div className="text-[10px] text-[#8A9A8C]">
+                            {orden.embarcar_a.split('\n').filter(Boolean).join(' · ')}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -266,7 +316,9 @@ export default function OrdenesPage() {
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-[#F0F5F0] text-[11px]">
-                    <span className="text-[#8A9A8C]">{orden.embarcar_a ?? '—'}</span>
+                    <span className="text-[#8A9A8C]">
+                      {orden.embarcar_a ? orden.embarcar_a.split('\n').filter(Boolean).join(' · ') : '—'}
+                    </span>
                     <span className={`font-medium ${isVencida ? 'text-[#1A1A1A]' : 'text-[#6B716C]'}`}>
                       FMF: {formatDateShort(orden.fecha_entrega)}
                       {isVencida && ' ⚠'}
@@ -276,9 +328,79 @@ export default function OrdenesPage() {
               );
             })}
           </div>
+
+          {paginas > 1 && (
+            <Paginacion
+              pagina={pagina}
+              paginas={paginas}
+              cargando={cargando}
+              onIr={(p) => { setPagina(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            />
+          )}
         </>
       )}
     </div>
+  );
+}
+
+// ─── Paginación ───────────────────────────────────────────────────────────────
+
+function Paginacion({
+  pagina, paginas, cargando, onIr,
+}: {
+  pagina: number;
+  paginas: number;
+  cargando: boolean;
+  onIr: (p: number) => void;
+}) {
+  // Ventana de páginas alrededor de la actual: con muchas páginas no tiene
+  // sentido pintarlas todas.
+  const desde = Math.max(1, Math.min(pagina - 2, paginas - 4));
+  const hasta = Math.min(paginas, desde + 4);
+  const numeros: number[] = [];
+  for (let p = desde; p <= hasta; p++) numeros.push(p);
+
+  const btn =
+    'min-w-[34px] h-[34px] px-2 text-xs font-medium rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+
+  return (
+    <nav aria-label="Paginación" className="flex items-center justify-center gap-1.5 mt-5 flex-wrap">
+      <button
+        onClick={() => onIr(pagina - 1)}
+        disabled={pagina <= 1 || cargando}
+        className={`${btn} border-[#E2E5E2] bg-white text-[#1A1A1A] hover:bg-[#F6F8F1]`}
+      >
+        ← Anterior
+      </button>
+
+      {desde > 1 && <span className="text-xs text-[#8A9A8C] px-1">…</span>}
+
+      {numeros.map(p => (
+        <button
+          key={p}
+          onClick={() => onIr(p)}
+          disabled={cargando}
+          aria-current={p === pagina ? 'page' : undefined}
+          className={`${btn} ${
+            p === pagina
+              ? 'bg-brand-green border-brand-green text-white font-semibold'
+              : 'border-[#E2E5E2] bg-white text-[#1A1A1A] hover:bg-[#F6F8F1]'
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+
+      {hasta < paginas && <span className="text-xs text-[#8A9A8C] px-1">…</span>}
+
+      <button
+        onClick={() => onIr(pagina + 1)}
+        disabled={pagina >= paginas || cargando}
+        className={`${btn} border-[#E2E5E2] bg-white text-[#1A1A1A] hover:bg-[#F6F8F1]`}
+      >
+        Siguiente →
+      </button>
+    </nav>
   );
 }
 

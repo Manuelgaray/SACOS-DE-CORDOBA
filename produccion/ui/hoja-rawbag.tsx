@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useProduccion } from '@/produccion/produccion-store';
+import { useProduccion } from '@/produccion/produccion-store';import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { AREA_LABELS } from '@/compartido/mock-data';
 import type { AvanceArea } from '@/produccion/produccion';
@@ -303,6 +303,7 @@ export default function HojaRawbagPage() {
           Hoja compartida por {AREA_LABELS.big} y {AREA_LABELS.tapa}: producción por operador en
           bloques de 2 horas.
         </p>
+        <BotonImprimir orden={orden.id} hoja="rawbag" permitido={puede} />
       </div>
 
       <PestanasHoja pestanas={pestanas} activa="Reporte de producción" />

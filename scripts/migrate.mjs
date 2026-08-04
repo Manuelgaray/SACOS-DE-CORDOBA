@@ -185,6 +185,113 @@ const MIGRACIONES = [
      creado_en     TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
   `CREATE INDEX IF NOT EXISTS hoja_defectos_orden ON hoja_defectos (orden_id, fecha, id)`,
+  // El spec deja de ser solo un nombre: es el DISEÑO del saco. Guarda sus
+  // especificaciones, su explosión de materiales y el PDF del diseño, para que
+  // al crear una orden ya venga todo adelantado.
+  `ALTER TABLE specs
+     ADD COLUMN IF NOT EXISTS medida          TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS carga_lbs       INTEGER NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS tipo_saco       TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS grado           TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS corte_elementos JSONB,
+     ADD COLUMN IF NOT EXISTS pdf_data        BYTEA,
+     ADD COLUMN IF NOT EXISTS pdf_nombre      TEXT,
+     ADD COLUMN IF NOT EXISTS pdf_mime        TEXT DEFAULT 'application/pdf',
+     ADD COLUMN IF NOT EXISTS registrado_por  TEXT,
+     ADD COLUMN IF NOT EXISTS actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now()`,
+  // Precarga: los specs que ya tienen órdenes heredan las especificaciones y la
+  // explosión de su última orden, para no capturarlas de nuevo a mano.
+  `UPDATE specs s SET
+     medida          = COALESCE(NULLIF(s.medida, ''), o.medida),
+     carga_lbs       = CASE WHEN s.carga_lbs = 0 THEN o.carga_lbs ELSE s.carga_lbs END,
+     tipo_saco       = COALESCE(NULLIF(s.tipo_saco, ''), o.tipo_saco),
+     grado           = COALESCE(NULLIF(s.grado, ''), COALESCE(o.grado, '')),
+     corte_elementos = COALESCE(s.corte_elementos, o.corte_elementos)
+   FROM (
+     SELECT DISTINCT ON (UPPER(TRIM(spec))) UPPER(TRIM(spec)) AS spec,
+            medida, carga_lbs, tipo_saco, grado, corte_elementos
+       FROM ordenes
+      WHERE TRIM(COALESCE(spec, '')) <> ''
+      ORDER BY UPPER(TRIM(spec)), fecha_creacion DESC
+   ) o
+   WHERE UPPER(s.spec) = o.spec
+     AND (s.tipo_saco = '' OR s.medida = '' OR s.corte_elementos IS NULL)`,
+  // El plano del diseño también se hereda: los specs sin PDF toman el de su
+  // última orden que tenga uno. Solo rellena los vacíos (es idempotente).
+  `UPDATE specs s SET
+     pdf_data   = o.pdf_data,
+     pdf_nombre = o.pdf_nombre,
+     pdf_mime   = COALESCE(o.pdf_mime, 'application/pdf')
+   FROM (
+     SELECT DISTINCT ON (UPPER(TRIM(spec))) UPPER(TRIM(spec)) AS spec,
+            pdf_data, pdf_nombre, pdf_mime
+       FROM ordenes
+      WHERE TRIM(COALESCE(spec, '')) <> '' AND pdf_data IS NOT NULL
+      ORDER BY UPPER(TRIM(spec)), fecha_creacion DESC
+   ) o
+   WHERE UPPER(s.spec) = o.spec AND s.pdf_data IS NULL`,
+  // FORMATO DE SALIDA Y ENTREGA DE MATERIALES A PRODUCCIÓN (Almacén).
+  // Una fila por ENTREGA (la hoja) y una fila por renglón de material.
+  // El avance del área son los sacos cuyo material ya salió a producción.
+  `CREATE TABLE IF NOT EXISTS hoja_almacen (
+     id                   BIGSERIAL PRIMARY KEY,
+     orden_id             TEXT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+     fecha                DATE NOT NULL DEFAULT CURRENT_DATE,
+     cantidad_entregada   INTEGER NOT NULL DEFAULT 0,
+     firma_entrega        TEXT NOT NULL DEFAULT '',
+     firma_recepcion_corte TEXT NOT NULL DEFAULT '',
+     firma_recepcion_prod TEXT NOT NULL DEFAULT '',
+     firma_recepcion_alm  TEXT NOT NULL DEFAULT '',
+     firma_entrega_corte  TEXT NOT NULL DEFAULT '',
+     capturado_por        TEXT,
+     creado_en            TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS hoja_almacen_orden ON hoja_almacen (orden_id, fecha, id)`,
+  // Renglones de material. `resumen` marca las filas sombreadas del papel: el
+  // total por familia de material, sin etiqueta ni factura.
+  `CREATE TABLE IF NOT EXISTS hoja_almacen_material (
+     id                 BIGSERIAL PRIMARY KEY,
+     hoja_id            BIGINT NOT NULL REFERENCES hoja_almacen(id) ON DELETE CASCADE,
+     resumen            BOOLEAN NOT NULL DEFAULT false,
+     material           TEXT NOT NULL DEFAULT '',
+     etiqueta           TEXT NOT NULL DEFAULT '',
+     factura            TEXT NOT NULL DEFAULT '',
+     tag                TEXT NOT NULL DEFAULT '',
+     cantidad           NUMERIC(12,2) NOT NULL DEFAULT 0,
+     unidad             TEXT NOT NULL DEFAULT '',
+     consumo_esperado   NUMERIC(12,2) NOT NULL DEFAULT 0,
+     devolucion_real    NUMERIC(12,2) NOT NULL DEFAULT 0,
+     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS hoja_almacen_material_hoja ON hoja_almacen_material (hoja_id, id)`,
+  // Los renglones sombreados dejaron de capturarse: la familia se deduce del
+  // código del rollo (SCFLF6CW48RAF → 6CW48) y su cantidad es la suma de sus
+  // rollos. En el renglón de cada rollo ya no va consumo ni devolución.
+  `ALTER TABLE hoja_almacen_material
+     DROP COLUMN IF EXISTS resumen,
+     DROP COLUMN IF EXISTS consumo_esperado,
+     DROP COLUMN IF EXISTS devolucion_real`,
+  // Consumo y devolución viven POR FAMILIA, que es donde los anota el papel.
+  `CREATE TABLE IF NOT EXISTS hoja_almacen_consumo (
+     hoja_id          BIGINT NOT NULL REFERENCES hoja_almacen(id) ON DELETE CASCADE,
+     familia          TEXT NOT NULL,
+     consumo_esperado NUMERIC(12,2) NOT NULL DEFAULT 0,
+     devolucion_real  NUMERIC(12,2) NOT NULL DEFAULT 0,
+     PRIMARY KEY (hoja_id, familia)
+   )`,
+  // Almacén dejó de reportar material por material (rollos, discos, bobinas) y
+  // ahora se mide por sacos surtidos. Sus filas de avance viejas se reemplazan
+  // por el punto único del formato nuevo; si no, quedarían renglones que nunca
+  // se completan y bloquearían el cierre automático de la orden.
+  `DELETE FROM avances
+    WHERE area = 'almacen' AND nombre <> 'Material entregado a producción'`,
+  `INSERT INTO avances (orden_id, area, comp_idx, nombre, meta, hecho)
+     SELECT o.id, 'almacen', 0, 'Material entregado a producción',
+            GREATEST(1, o.cantidad),
+            -- Las órdenes ya cerradas conservan su 100 %: su material salió.
+            CASE WHEN o.status = 'terminada' THEN GREATEST(1, o.cantidad) ELSE 0 END
+       FROM ordenes o
+   ON CONFLICT (orden_id, area, comp_idx) DO NOTHING`,
   // CONTROL DE TARIMAS Y SACOS EN PRENSA (Empaque): una fila por TARIMA, con su
   // fecha, número, el conteo de sacos prensados (retícula de 1 a 200 del papel)
   // y el peso en libras. El avance del área es la suma de todas las tarimas.

@@ -7,6 +7,7 @@ import { type OrderStatus } from '@/compartido/mock-data';
 import { useProduccion } from '@/produccion/produccion-store';
 import { useSession, canUpload } from '@/autenticacion/auth';
 import { siguienteNumeroOrden } from '@/ordenes/orden-num';
+import { combinarMedida, separarMedida, TIPOS_SACO, GRADOS } from '@/ordenes/medida';
 import { elementosDesdePlantilla, calcularExplosion, type ElementoCorte } from '@/explosion-materiales/explosion';
 import {
   TablaCorteEditable,
@@ -18,9 +19,6 @@ import {
   mensajeLectura,
 } from '@/explosion-materiales/ui/ExplosionMateriales';
 import { ConfirmModal } from '@/compartido/ui/Modal';
-
-const TIPOS_SACO = ['U-PANEL', '4-PANEL', 'BAFFLE', 'TUBULAR'];
-const GRADOS = ['', 'GRADO ALIMENTO', 'GRADO INDUSTRIAL'];
 
 // El PDF se guarda en PostgreSQL (columna bytea). Limitamos el tamaño para evitar
 // subidas enormes; 10 MB es de sobra para la carátula/diseño de una orden.
@@ -63,8 +61,16 @@ export default function NuevaOrdenPage() {
   const [pdfDataUrl, setPdfDataUrl] = useState('');
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
-  // true si el PDF se cargó automáticamente de la última orden del spec.
+  // true si el PDF se cargó automáticamente del spec (no lo subió el usuario).
   const [pdfDeSpec, setPdfDeSpec] = useState(false);
+
+  // El autollenado corre dentro de un efecto con sus propias dependencias, así
+  // que leería un `pdfDataUrl` viejo. Este espejo le da siempre el estado actual
+  // del PDF para decidir si puede reemplazarlo al cambiar de spec.
+  const pdfRef = useRef({ hay: false, deSpec: false });
+  useEffect(() => {
+    pdfRef.current = { hay: !!pdfDataUrl, deSpec: pdfDeSpec };
+  }, [pdfDataUrl, pdfDeSpec]);
 
   // Explosión de materiales (opcional, se llena antes de publicar la orden).
   const [corteElementos, setCorteElementos] = useState<ElementoCorte[]>([]);
@@ -178,11 +184,13 @@ export default function NuevaOrdenPage() {
   }, [registro, ordenes, form.cliente]);
 
   // ── Autollenado por spec ────────────────────────────────────────────────────
-  // Al capturar un spec conocido, se cargan las especificaciones de su última
-  // orden: cliente, tipo de saco, medida, carga, grado y los elementos de corte
-  // con sus medidas. Los datos propios de cada orden (número, cantidad, FMF,
-  // PDF…) no se tocan. Cada spec se aplica una sola vez.
+  // Al capturar un spec conocido se cargan sus especificaciones: cliente, tipo
+  // de saco, medida, carga, grado, la explosión de materiales y el PDF. La
+  // fuente preferida es el DISEÑO registrado en Clientes; si el spec todavía no
+  // tiene ficha, se cae a su última orden. Los datos propios de cada orden
+  // (número, cantidad, FMF…) no se tocan. Cada spec se aplica una sola vez.
   const ultimoSpecAplicado = useRef('');
+  const [origenDatos, setOrigenDatos] = useState<'diseno' | 'orden' | null>(null);
   useEffect(() => {
     const spec = form.spec.trim().toUpperCase();
     if (!sesion?.email || spec.length < 3 || spec === ultimoSpecAplicado.current) return;
@@ -192,15 +200,37 @@ export default function NuevaOrdenPage() {
         const res = await fetch(`/api/specs/${encodeURIComponent(spec)}`, {
           headers: { 'x-user-email': sesion.email },
         });
-        if (!res.ok) return; // spec nuevo: no hay nada que cargar
+        if (!res.ok) {
+          // Spec desconocido: no hay nada que heredar. Si el plano cargado venía
+          // de OTRO spec, se quita — una orden nunca debe salir con el diseño de
+          // otro producto. Sin aviso: puede ser que aún estén tecleando.
+          if (pdfRef.current.deSpec) {
+            setPdfDataUrl('');
+            setPdfName('');
+            setPdfDeSpec(false);
+          }
+          setOrigenDatos(null);
+          return;
+        }
         const data = await res.json();
         ultimoSpecAplicado.current = spec;
 
-        const o = data.orden as {
+        type Fuente = {
           tipo_saco: string; medida: string; carga_lbs: number;
           grado: string | null; corte_elementos: ElementoCorte[] | null;
-          pdf_url: string | null;
-        } | null;
+          pdf_url: string | null; pdf_nombre?: string | null;
+        };
+        // El diseño registrado manda; la última orden es el respaldo.
+        const diseno = (data.diseno ?? null) as Fuente | null;
+        const ultimaOrden = (data.orden ?? null) as Fuente | null;
+        const usable = diseno && (diseno.tipo_saco || diseno.medida || diseno.corte_elementos);
+        const o = (usable ? diseno : ultimaOrden) as Fuente | null;
+        setOrigenDatos(usable ? 'diseno' : ultimaOrden ? 'orden' : null);
+        // El PDF se busca aparte: un diseño puede tener las especificaciones
+        // capturadas y todavía no su plano (p. ej. specs viejos), y en ese caso
+        // sirve el de la última orden.
+        const pdfUrl = diseno?.pdf_url || ultimaOrden?.pdf_url || null;
+        const pdfNombre = (diseno?.pdf_url ? diseno.pdf_nombre : ultimaOrden?.pdf_nombre) || '';
 
         const medidaSep = separarMedida(o?.medida ?? '');
         setForm(f => ({
@@ -212,7 +242,7 @@ export default function NuevaOrdenPage() {
                 medida: medidaSep.dims || f.medida,
                 medida_unidad: medidaSep.unidad ?? f.medida_unidad,
                 carga_lbs: o.carga_lbs ? String(o.carga_lbs) : f.carga_lbs,
-                grado: o.grado ?? f.grado,
+                grado: o.grado || f.grado,
               }
             : {}),
         }));
@@ -223,29 +253,47 @@ export default function NuevaOrdenPage() {
           }
           setCorteMsg({
             tipo: 'info',
-            texto: `Especificaciones cargadas del spec ${spec} (última orden de ${data.cliente ?? 'este producto'}). Revisa y ajusta si algo cambió.`,
+            texto: usable
+              ? `Especificaciones cargadas del diseño registrado ${spec} (${data.cliente ?? 'este producto'}). Revisa y ajusta si algo cambió.`
+              : `Especificaciones cargadas de la última orden del spec ${spec}. Regístralo como diseño en Clientes para tenerlo siempre listo.`,
           });
 
-          // PDF automático: si el usuario aún no sube uno, se hereda el de la
-          // última orden del spec (se puede reemplazar arrastrando otro).
-          if (o.pdf_url && !pdfDataUrl) {
-            try {
-              const resPdf = await fetch(o.pdf_url);
-              if (resPdf.ok) {
-                const blob = await resPdf.blob();
-                const dataUrl = await new Promise<string>((resolve, reject) => {
-                  const r = new FileReader();
-                  r.onload = () => resolve(r.result as string);
-                  r.onerror = () => reject(r.error);
-                  r.readAsDataURL(blob);
-                });
-                setPdfDataUrl(dataUrl);
-                setPdfName(`${spec}.pdf`);
-                setPdfDeSpec(true);
-                setPdfError(null);
+          // PDF automático: EL PLANO SIGUE AL SPEC. Si el que está cargado vino
+          // de otro spec, se reemplaza; si el spec nuevo no tiene plano, se
+          // quita (nunca debe quedar el diseño de otro producto en la orden).
+          // Un PDF que el usuario subió a mano sí se respeta.
+          const puedeReemplazar = !pdfRef.current.hay || pdfRef.current.deSpec;
+          if (puedeReemplazar) {
+            if (!pdfUrl) {
+              setPdfDataUrl('');
+              setPdfName('');
+              setPdfDeSpec(false);
+              if (pdfRef.current.hay) {
+                setPdfError(`El spec ${spec} no tiene PDF registrado. Súbelo aquí.`);
               }
-            } catch {
-              /* sin PDF heredado: el usuario lo sube manual, como siempre */
+            } else {
+              try {
+                // El endpoint del PDF es privado: hay que mandar la identidad
+                // en el header, igual que el visor.
+                const resPdf = await fetch(pdfUrl, { headers: { 'x-user-email': sesion.email } });
+                if (!resPdf.ok) {
+                  setPdfError('No se pudo traer el PDF de este spec. Súbelo manualmente.');
+                } else {
+                  const blob = await resPdf.blob();
+                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                    const r = new FileReader();
+                    r.onload = () => resolve(r.result as string);
+                    r.onerror = () => reject(r.error);
+                    r.readAsDataURL(blob);
+                  });
+                  setPdfDataUrl(dataUrl);
+                  setPdfName(pdfNombre || `${spec}.pdf`);
+                  setPdfDeSpec(true);
+                  setPdfError(null);
+                }
+              } catch {
+                setPdfError('No se pudo traer el PDF de este spec. Súbelo manualmente.');
+              }
             }
           }
         }
@@ -451,7 +499,10 @@ export default function NuevaOrdenPage() {
           {pdfName && (
             pdfDeSpec ? (
               <p className="text-xs text-[#6B5418] bg-[#FFF7E8] border border-[#E8C88A] rounded-lg px-3 py-2 mt-2">
-                📎 PDF cargado automáticamente de la <span className="font-semibold">última orden de este spec</span>.
+                📎 PDF cargado automáticamente{' '}
+                <span className="font-semibold">
+                  {origenDatos === 'diseno' ? 'del diseño registrado de este spec' : 'de la última orden de este spec'}
+                </span>.
                 Si el diseño tiene una revisión nueva, arrastra el PDF actualizado para reemplazarlo.
               </p>
             ) : (
@@ -518,8 +569,16 @@ export default function NuevaOrdenPage() {
                 placeholder="POUS-5053" className={inputCls} />
             </Field>
             <Field label="Embarcar a">
-              <input value={form.embarcar_a} onChange={e => set('embarcar_a', e.target.value)}
-                placeholder="LAREDO, TX" className={inputCls} />
+              {/* Hay órdenes que se reparten a varios destinos: un destino por
+                  renglón (Enter hace el salto de línea). */}
+              <textarea
+                rows={3}
+                value={form.embarcar_a}
+                onChange={e => set('embarcar_a', e.target.value)}
+                placeholder={'LAREDO, TX.\nMONTERREY, N.L.'}
+                className={`${inputCls} resize-y min-h-[76px] leading-snug`}
+              />
+              <p className="text-[10px] text-[#8A9A8C] mt-1">Un destino por renglón.</p>
             </Field>
             <Field label="Grado">
               <select value={form.grado} onChange={e => set('grado', e.target.value)} className={inputCls}>
@@ -649,7 +708,10 @@ export default function NuevaOrdenPage() {
           <ResumenFila label="FMF" valor={form.fecha_entrega} />
           <ResumenFila label="Tipo de saco" valor={form.tipo_saco} />
           <ResumenFila label="Orden cliente" valor={form.orden_cliente || '—'} />
-          <ResumenFila label="Embarcar a" valor={form.embarcar_a || '—'} />
+          <ResumenFila
+            label="Embarcar a"
+            valor={form.embarcar_a.split('\n').filter(Boolean).join(' · ') || '—'}
+          />
           <ResumenFila label="Grado" valor={form.grado || '—'} />
           <ResumenFila label="Línea" valor={`Línea ${form.linea}`} />
           <ResumenFila label="PDF" valor={pdfName} />
@@ -666,27 +728,6 @@ function ResumenFila({ label, valor, mono }: { label: string; valor: string; mon
       <dd className={`text-[#1A1A1A] text-right truncate ${mono ? 'font-mono text-xs' : ''}`}>{valor || '—'}</dd>
     </div>
   );
-}
-
-// Combina las dimensiones con la unidad elegida. Respeta lo escrito si el
-// usuario ya incluyó comillas o una unidad (in/cm/pulg).
-function combinarMedida(dims: string, unidad: string): string {
-  const d = dims.trim();
-  if (!d) return '';
-  if (/["”]|\b(cm|in|pulg)\b/i.test(d)) return d;
-  return `${d} ${unidad === 'cm' ? 'cm' : 'in'}`;
-}
-
-// Inverso de combinarMedida: separa "36 x 36 x 50 in" en dimensiones + unidad,
-// para rellenar el formulario al autocargar las especificaciones de un spec.
-function separarMedida(medida: string): { dims: string; unidad?: 'pulg' | 'cm' } {
-  const m = medida.trim();
-  if (!m) return { dims: '' };
-  const cm = m.match(/^(.*?)\s*cm$/i);
-  if (cm) return { dims: cm[1].trim(), unidad: 'cm' };
-  const pulg = m.match(/^(.*?)\s*(?:in|pulg\.?)$/i);
-  if (pulg) return { dims: pulg[1].trim(), unidad: 'pulg' };
-  return { dims: m };
 }
 
 const inputCls = 'w-full px-3 py-2 text-sm border border-[#E2E5E2] rounded-lg bg-[#F8FAF8] focus:outline-none focus:ring-1 focus:ring-brand-green focus:border-brand-green transition-colors';

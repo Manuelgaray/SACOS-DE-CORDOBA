@@ -5,11 +5,19 @@ import { type Orden, type OrderStatus, type ElementoCorte } from '@/compartido/m
 import { type AvanceArea } from '@/produccion/produccion';
 import { getSession } from '@/autenticacion/auth';
 
+// Cada cuánto se vuelve a preguntar por órdenes y avances mientras la pestaña
+// está a la vista. Con la pestaña en segundo plano no se consulta nada.
+const REFRESCO_MS = 20_000;
+
 interface Ctx {
   ordenes: Orden[];
   avances: Record<string, AvanceArea[]>;
   estados: Record<string, OrderStatus>;
   ready: boolean;
+  /** Vuelve a leer del servidor (lo usan las pantallas tras guardar algo). */
+  refrescar: () => void;
+  /** Trae una orden que no esté en el conjunto de trabajo (histórico). */
+  cargarOrden: (ordenId: string) => Promise<boolean>;
   setHecho: (ordenId: string, area: string, compIdx: number, valor: number) => void;
   setEstado: (ordenId: string, estado: OrderStatus) => void;
   addOrden: (orden: Orden, avances: AvanceArea[]) => void;
@@ -26,32 +34,68 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
   const [estados, setEstados] = useState<Record<string, OrderStatus>>({});
   const [ready, setReady] = useState(false);
 
-  // Cargar órdenes y avances desde PostgreSQL (vía /api/data).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/data');
-        if (!res.ok) throw new Error('No se pudieron cargar los datos');
-        const data = (await res.json()) as { ordenes: Orden[]; avances: Record<string, AvanceArea[]> };
-        if (cancelled) return;
-        setOrdenes(data.ordenes);
-        setAvances(data.avances);
-      } catch (e) {
-        console.error('Error cargando datos de producción:', e);
-      } finally {
-        if (!cancelled) setReady(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Debounce por componente: la pantalla se actualiza al instante, pero el POST
   // (y por tanto el renglón en la bitácora de reportes) se manda hasta que el
   // supervisor deja de teclear ~0.8 s — así no se genera un reporte por tecla.
   const timersHecho = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  // ── Datos siempre frescos ───────────────────────────────────────────────────
+  // El proveedor vive en el shell de la app, así que NO se vuelve a montar al
+  // navegar entre secciones: sin esto, lo que otro usuario crea o captura no
+  // aparecería hasta recargar la página con F5.
+  const cargando = useRef(false);
+
+  const refrescar = useCallback(async () => {
+    // Si el supervisor está tecleando avances hay escrituras en cola: traer del
+    // servidor ahora le regresaría el número viejo a media captura.
+    if (cargando.current || timersHecho.current.size > 0) return;
+    cargando.current = true;
+    try {
+      const res = await fetch('/api/data', { cache: 'no-store' });
+      if (!res.ok) throw new Error('No se pudieron cargar los datos');
+      const data = (await res.json()) as { ordenes: Orden[]; avances: Record<string, AvanceArea[]> };
+      setOrdenes(data.ordenes);
+      setAvances(data.avances);
+      // `estados` es el override local del status. Se limpian los que el
+      // servidor ya confirmó; si quedara alguno en vuelo, se respeta.
+      setEstados(prev => {
+        const servidor = new Map(data.ordenes.map(o => [o.id, o.status]));
+        const next: Record<string, OrderStatus> = {};
+        for (const [id, st] of Object.entries(prev)) {
+          if (servidor.get(id) !== st) next[id] = st;
+        }
+        return next;
+      });
+    } catch (e) {
+      // Sin red se conserva lo que ya está en pantalla: la planta sigue viendo
+      // sus órdenes aunque el servidor parpadee.
+      console.error('Error cargando datos de producción:', e);
+    } finally {
+      cargando.current = false;
+      setReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    refrescar();
+
+    // Al volver a la pestaña se refresca de inmediato; mientras esté a la vista,
+    // cada REFRESCO_MS. En segundo plano no se consulta nada.
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') refrescar();
+    };
+    const intervalo = setInterval(alVolver, REFRESCO_MS);
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alVolver);
+    window.addEventListener('online', alVolver);
+
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alVolver);
+      window.removeEventListener('online', alVolver);
+    };
+  }, [refrescar]);
 
   const setHecho = useCallback((ordenId: string, area: string, compIdx: number, valor: number) => {
     // Update optimista en pantalla (incluye la marca del último reporte)...
@@ -162,6 +206,24 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
+  // El store solo trae el conjunto de trabajo. Al abrir una orden vieja del
+  // histórico, la pantalla la pide por id y aquí se suma a lo que hay en memoria.
+  const cargarOrden = useCallback(async (ordenId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/ordenes/${encodeURIComponent(ordenId)}`, {
+        headers: { 'x-user-email': getSession()?.email ?? '' },
+        cache: 'no-store',
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { orden: Orden; avances: AvanceArea[] };
+      setOrdenes(prev => (prev.some(o => o.id === data.orden.id) ? prev : [...prev, data.orden]));
+      setAvances(prev => ({ ...prev, [data.orden.id]: data.avances }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // La orden ya fue creada en el servidor; aquí solo la reflejamos en pantalla.
   const addOrden = useCallback((orden: Orden, avancesOrden: AvanceArea[]) => {
     setOrdenes(prev => [orden, ...prev]);
@@ -180,7 +242,7 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <ProduccionContext.Provider value={{ ordenes, avances, estados, ready, setHecho, setEstado, addOrden, setCorteElementos, setAvancesOrden, patchOrden }}>
+    <ProduccionContext.Provider value={{ ordenes, avances, estados, ready, refrescar, cargarOrden, setHecho, setEstado, addOrden, setCorteElementos, setAvancesOrden, patchOrden }}>
       {children}
     </ProduccionContext.Provider>
   );

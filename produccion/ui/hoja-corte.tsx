@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useProduccion } from '@/produccion/produccion-store';
+import { useProduccion } from '@/produccion/produccion-store';import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession, puedeCapturar } from '@/autenticacion/auth';
 import { coincideElementoHoja, type ComponenteProduccion } from '@/produccion/produccion';
 import NumeroInput from '@/compartido/ui/NumeroInput';
@@ -329,7 +329,7 @@ export default function HojaCortePage() {
           Regresar
         </button>
         <h1 className="text-xl lg:text-2xl font-semibold text-[#1A1A1A]">Hoja de corte — verificación de material</h1>
-
+        <BotonImprimir orden={orden.id} hoja="corte" permitido={puedeCapturar(sesion, 'corte')} />
       </div>
 
       {bloqueo && (
