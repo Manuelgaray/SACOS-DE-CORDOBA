@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["cle1"],
   "functions": {
-    "app/api/explosion/extraer/route.ts": { "maxDuration": 60, "memory": 2048 },
-    "app/api/ordenes/[id]/explosion/extraer/route.ts": { "maxDuration": 60, "memory": 2048 }
+    "app/api/explosion/extraer/route.ts": { "maxDuration": 60 },
+    "app/api/ordenes/[id]/explosion/extraer/route.ts": { "maxDuration": 60 }
   }
 }
