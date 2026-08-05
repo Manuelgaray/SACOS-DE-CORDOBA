@@ -9,7 +9,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from 'react';
-import { getSession } from '@/autenticacion/auth';
 
 const MAX_PAGINAS = 12;      // suficiente para planos/órdenes; evita PDFs enormes
 const MAX_PX_ANCHO = 2600;   // tope del lienzo por página (nitidez sin desperdicio)
@@ -30,12 +29,12 @@ export default function PdfViewer({ url }: { url: string }) {
         // versión siempre coincida con la del paquete instalado).
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-        // El endpoint del PDF exige usuario autenticado (dato sensible):
-        // mandamos la identidad de la sesión en el header.
-        const doc = await pdfjs.getDocument({
-          url,
-          httpHeaders: { 'x-user-email': getSession()?.email ?? '' },
-        }).promise;
+        // Sin encabezados propios A PROPÓSITO. El endpoint identifica al
+        // usuario por la cookie de sesión (que el navegador manda sola por ser
+        // del mismo origen) y responde con una redirección a Supabase. Si aquí
+        // se añadiera un encabezado personalizado, esa redirección cruzada
+        // exigiría un preflight que Supabase rechaza, y el plano no cargaría.
+        const doc = await pdfjs.getDocument({ url }).promise;
         if (cancelado) return;
 
         const cont = contRef.current;

@@ -245,7 +245,7 @@ export default function ImprimirHojaPage() {
     if (!def.api) { setDatos({}); setCargando(false); return; }
     let cancelado = false;
     setCargando(true);
-    fetch(`${def.api}?orden=${encodeURIComponent(ordenId)}`, { headers: { 'x-user-email': sesion.email } })
+    fetch(`${def.api}?orden=${encodeURIComponent(ordenId)}`)
       .then(async r => {
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d?.error ?? 'No se pudo cargar la hoja.');

@@ -117,7 +117,7 @@ export default function NuevaOrdenPage() {
     try {
       const res = await fetch('/api/explosion/extraer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pdf_base64: pdfDataUrl, tipo_saco: form.tipo_saco }),
       });
       const data = await res.json().catch(() => ({}));
@@ -151,7 +151,7 @@ export default function NuevaOrdenPage() {
   useEffect(() => {
     if (!sesion?.email) return;
     let cancelado = false;
-    fetch('/api/clientes', { headers: { 'x-user-email': sesion.email } })
+    fetch('/api/clientes')
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (!cancelado && data?.clientes) setRegistro(data.clientes);
@@ -207,7 +207,6 @@ export default function NuevaOrdenPage() {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/specs/${encodeURIComponent(spec)}`, {
-          headers: { 'x-user-email': sesion.email },
         });
         if (!res.ok) {
           // Spec desconocido: no hay nada que heredar. Si el plano cargado venía
@@ -385,10 +384,7 @@ export default function NuevaOrdenPage() {
 
       const res = await fetch('/api/ordenes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-email': sesion?.email ?? '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           numero_orden: form.numero_orden,
           cliente: form.cliente,

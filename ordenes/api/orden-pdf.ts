@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 
 // GET /api/ordenes/[id]/pdf — entrega el plano de la orden.
 //
-// El diseño es información sensible: SOLO usuarios autenticados (el visor de la
-// app manda el header x-user-email); la URL directa sin sesión responde 401.
+// El diseño es información sensible: SOLO usuarios autenticados. La identidad
+// viaja en la cookie de sesión, que el navegador manda sola; sin ella → 401.
 //
 // Si el plano está en Supabase Storage (lo normal), NO se transmiten los bytes
 // por aquí: se responde con una redirección a una URL firmada de corta vida y

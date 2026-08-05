@@ -83,8 +83,8 @@ export default function ClientesPage() {
   }, [ready, permitido, router]);
 
   const headers = useCallback(
-    () => ({ 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' }),
-    [sesion?.email],
+    () => ({ 'Content-Type': 'application/json' }),
+    [],
   );
 
   const cargar = useCallback(async () => {

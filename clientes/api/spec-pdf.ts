@@ -7,8 +7,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // GET /api/specs/[spec]/pdf — sirve el PDF del diseño guardado en el catálogo.
-// El diseño es información sensible: SOLO usuarios autenticados (el visor de la
-// app manda el header x-user-email); la URL directa sin sesión responde 401.
+// El diseño es información sensible: SOLO usuarios autenticados. La identidad
+// viaja en la cookie de sesión, que el navegador manda sola; sin ella → 401.
 export async function GET(req: Request, { params }: { params: { spec: string } }) {
   const actor = await actorDe(req);
   if (!actor) return new Response('No autenticado', { status: 401 });

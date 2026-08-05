@@ -66,7 +66,6 @@ export default function OrdenesPage() {
       if (tab !== 'todas') p.set('estado', tab);
       if (busqueda) p.set('q', busqueda);
       const res = await fetch(`/api/ordenes?${p.toString()}`, {
-        headers: { 'x-user-email': sesion.email },
         cache: 'no-store',
       });
       if (!res.ok) return;

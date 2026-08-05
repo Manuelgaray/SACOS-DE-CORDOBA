@@ -91,7 +91,7 @@ export default function DisenoFormPage() {
   useEffect(() => {
     if (!sesion?.email) return;
     let cancelado = false;
-    fetch('/api/clientes', { headers: { 'x-user-email': sesion.email } })
+    fetch('/api/clientes')
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (!cancelado && d?.clientes) {
@@ -115,7 +115,7 @@ export default function DisenoFormPage() {
     if (!editando || !sesion?.email) return;
     let cancelado = false;
     setCargandoDiseno(true);
-    fetch(`/api/specs/${encodeURIComponent(specEditando)}`, { headers: { 'x-user-email': sesion.email } })
+    fetch(`/api/specs/${encodeURIComponent(specEditando)}`)
       .then(async r => {
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d?.error ?? 'No se pudo cargar el diseño.');
@@ -177,7 +177,7 @@ export default function DisenoFormPage() {
     try {
       const res = await fetch('/api/explosion/extraer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pdf_base64: pdfDataUrl, tipo_saco: form.tipo_saco }),
       });
       const data = await res.json().catch(() => ({}));
@@ -231,12 +231,12 @@ export default function DisenoFormPage() {
       const res = editando
         ? await fetch(`/api/specs/${encodeURIComponent(specEditando)}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(cuerpo),
           })
         : await fetch('/api/specs', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(cuerpo),
           });
       const data = await res.json().catch(() => ({}));

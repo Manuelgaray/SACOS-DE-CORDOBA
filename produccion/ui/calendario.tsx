@@ -72,7 +72,6 @@ export default function CalendarioPage() {
     setCargando(true);
     try {
       const res = await fetch(`/api/calendario?mes=${mesStr}`, {
-        headers: { 'x-user-email': sesion.email },
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {

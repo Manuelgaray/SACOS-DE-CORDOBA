@@ -9,7 +9,7 @@ import { moverObjeto, copiarObjeto, rutaOrden, rutaSpec } from '@/compartido/sto
 export const runtime = 'nodejs';
 
 // POST /api/ordenes — crea una orden (carátula + PDF embebido) y genera sus avances.
-// Autorización: el header `x-user-email` identifica al usuario; solo admin/diseño suben.
+// Autorización: la sesión de Supabase identifica al usuario; solo admin/diseño suben.
 export async function POST(req: Request) {
   // La identidad viene de la sesión de Supabase, no de un encabezado.
   const actorEmail = await emailDeSesion();

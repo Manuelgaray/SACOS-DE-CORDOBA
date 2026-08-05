@@ -22,7 +22,7 @@ export async function subirPdf(archivo: File, destino: DestinoPdf): Promise<stri
   // 1. El servidor comprueba la sesión y arma la ruta (el cliente nunca la elige).
   const res = await fetch('/api/subida', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-user-email': email },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(destino),
   });
   const firma = await res.json().catch(() => ({}));

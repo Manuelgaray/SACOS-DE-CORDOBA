@@ -258,7 +258,6 @@ export default function ExplosionMateriales({ orden }: { orden: Orden }) {
     try {
       const res = await fetch(`/api/ordenes/${orden.id}/explosion/extraer`, {
         method: 'POST',
-        headers: { 'x-user-email': sesion?.email ?? '' },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -281,7 +280,7 @@ export default function ExplosionMateriales({ orden }: { orden: Orden }) {
     try {
       const res = await fetch(`/api/ordenes/${orden.id}/explosion`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ elementos }),
       });
       const data = await res.json().catch(() => ({}));

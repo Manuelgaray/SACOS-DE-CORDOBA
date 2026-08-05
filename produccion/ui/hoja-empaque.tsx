@@ -86,15 +86,15 @@ export default function HojaEmpaquePage() {
   const [eliminando, setEliminando] = useState(false);
 
   const headers = useCallback(
-    () => ({ 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' }),
-    [sesion?.email],
+    () => ({ 'Content-Type': 'application/json' }),
+    [],
   );
 
   useEffect(() => {
     if (!orden?.id || !sesion?.email) return;
     let cancelado = false;
     setCargando(true);
-    fetch(`/api/hoja-empaque?orden=${encodeURIComponent(orden.id)}`, { headers: { 'x-user-email': sesion.email } })
+    fetch(`/api/hoja-empaque?orden=${encodeURIComponent(orden.id)}`)
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (cancelado || !data) return;

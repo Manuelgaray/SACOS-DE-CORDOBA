@@ -12,7 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useProduccion } from '@/produccion/produccion-store';import BotonImprimir from '@/produccion/ui/BotonImprimir';
+import { useProduccion } from '@/produccion/produccion-store';
+import BotonImprimir from '@/produccion/ui/BotonImprimir';
 import { useSession } from '@/autenticacion/auth';
 import { ConfirmModal } from '@/compartido/ui/Modal';
 import PestanasHoja from '@/produccion/ui/PestanasHoja';
@@ -104,15 +105,15 @@ export default function HojaVerifRawbagPage() {
   const [eliminando, setEliminando] = useState(false);
 
   const headers = useCallback(
-    () => ({ 'Content-Type': 'application/json', 'x-user-email': sesion?.email ?? '' }),
-    [sesion?.email],
+    () => ({ 'Content-Type': 'application/json' }),
+    [],
   );
 
   useEffect(() => {
     if (!orden?.id || !sesion?.email) return;
     let cancelado = false;
     setCargando(true);
-    fetch(`/api/hoja-verif-rawbag?orden=${encodeURIComponent(orden.id)}`, { headers: { 'x-user-email': sesion.email } })
+    fetch(`/api/hoja-verif-rawbag?orden=${encodeURIComponent(orden.id)}`)
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (!cancelado && data?.renglones) setRenglones(data.renglones as RenglonVerif[]);

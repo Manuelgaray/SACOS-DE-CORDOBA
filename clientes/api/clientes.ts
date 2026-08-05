@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     carga_lbs: number; grado: string; tiene_pdf: boolean; tiene_explosion: boolean;
   }>(
     `SELECT spec, cliente, tipo_saco, medida, carga_lbs, grado,
-            (pdf_data IS NOT NULL) AS tiene_pdf,
+            (pdf_path IS NOT NULL OR pdf_data IS NOT NULL) AS tiene_pdf,
             (corte_elementos IS NOT NULL) AS tiene_explosion
        FROM specs
       ORDER BY spec`,

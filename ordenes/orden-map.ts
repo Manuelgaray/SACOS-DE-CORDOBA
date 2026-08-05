@@ -71,6 +71,8 @@ export const ORDEN_COLS = `
   id, numero_orden, cliente, spec, medida, cantidad, carga_lbs, tipo_saco,
   orden_cliente, embarcar_a, grado, area_actual, status, linea,
   fecha_creacion, fecha_inicio, fecha_entrega::text AS fecha_entrega, fecha_fin,
-  (pdf_data IS NOT NULL) AS has_pdf,
+  -- Hay plano si está en Storage (lo normal) o si es una orden vieja que
+  -- todavía lo guarda dentro de la base.
+  (pdf_path IS NOT NULL OR pdf_data IS NOT NULL) AS has_pdf,
   corte_elementos, elaborado_por, autorizado_por, fecha_autorizacion
 `;

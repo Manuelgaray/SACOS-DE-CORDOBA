@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSession, updateSession, ROL_LABEL, type Rol } from '@/autenticacion/auth';
+import { useRouter } from 'next/navigation';
+import { useSession, updateSession, logout, ROL_LABEL, type Rol } from '@/autenticacion/auth';
+import { supabaseNavegador } from '@/autenticacion/supabase-cliente';
 import { AREA_LABELS } from '@/compartido/mock-data';
 
 const inputCls =
@@ -9,6 +11,7 @@ const inputCls =
 
 export default function PerfilPage() {
   const { sesion, ready } = useSession();
+  const router = useRouter();
 
   const [nombre, setNombre] = useState('');
   const [passActual, setPassActual] = useState('');
@@ -30,7 +33,7 @@ export default function PerfilPage() {
     try {
       const res = await fetch('/api/perfil', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': sesion!.email },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre,
           ...(passNueva ? { password_actual: passActual, password_nueva: passNueva } : {}),
@@ -42,9 +45,33 @@ export default function PerfilPage() {
         return;
       }
       updateSession({ nombre });
+
+      // Supabase revoca TODAS las sesiones al cambiar la contraseña — incluida
+      // la de esta pestaña. Se vuelve a entrar con la contraseña nueva (que el
+      // usuario acaba de teclear) para que siga trabajando sin interrupción.
+      if (passNueva) {
+        const { error } = await supabaseNavegador().auth.signInWithPassword({
+          email: sesion!.email,
+          password: passNueva,
+        });
+        if (error) {
+          setMsg({
+            tipo: 'ok',
+            texto: 'Contraseña actualizada. Vuelve a iniciar sesión con la nueva.',
+          });
+          setTimeout(() => { logout().finally(() => router.replace('/login')); }, 1800);
+          return;
+        }
+      }
+
       setPassActual('');
       setPassNueva('');
-      setMsg({ tipo: 'ok', texto: 'Perfil actualizado.' });
+      setMsg({
+        tipo: 'ok',
+        texto: passNueva
+          ? 'Perfil actualizado. Tu contraseña nueva ya está activa.'
+          : 'Perfil actualizado.',
+      });
     } catch {
       setMsg({ tipo: 'error', texto: 'No se pudo conectar con el servidor.' });
     } finally {

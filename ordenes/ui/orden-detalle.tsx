@@ -50,7 +50,6 @@ export default function OrdenDetallePage({ params }: { params: { id: string } })
     try {
       const res = await fetch(`/api/ordenes/${orden.id}/autorizar`, {
         method: 'POST',
-        headers: { 'x-user-email': sesion?.email ?? '' },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

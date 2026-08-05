@@ -129,10 +129,7 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
         timersHecho.current.delete(clave);
         fetch('/api/avances', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-email': getSession()?.email ?? '',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ordenId, area, compIdx, valor }),
           keepalive: true,
         })
@@ -169,10 +166,7 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
     // Solo un admin puede cambiar el estado: el servidor lo valida con este header.
     fetch(`/api/ordenes/${ordenId}/estado`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-email': getSession()?.email ?? '',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado }),
     })
       .then(async res => {
@@ -211,7 +205,6 @@ export function ProduccionProvider({ children }: { children: React.ReactNode }) 
   const cargarOrden = useCallback(async (ordenId: string): Promise<boolean> => {
     try {
       const res = await fetch(`/api/ordenes/${encodeURIComponent(ordenId)}`, {
-        headers: { 'x-user-email': getSession()?.email ?? '' },
         cache: 'no-store',
       });
       if (!res.ok) return false;
