@@ -59,7 +59,11 @@ async function ocrPdf(buf: Buffer): Promise<string> {
   }).promise;
 
   const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker(['spa', 'eng']);
+  // Tesseract descarga los idiomas y los guarda en disco. En serverless el
+  // único directorio con escritura es el temporal del sistema; sin esto el OCR
+  // falla en Vercel con un error de permisos difícil de rastrear.
+  const { tmpdir } = await import('node:os');
+  const worker = await createWorker(['spa', 'eng'], undefined, { cachePath: tmpdir() });
 
   let texto = '';
   const maxPaginas = Math.min(doc.numPages, 2);
