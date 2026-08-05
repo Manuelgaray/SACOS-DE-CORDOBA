@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
+import { emailDeSesion } from '@/autenticacion/supabase-servidor';
 import { normalizarElementos } from '@/explosion-materiales/explosion';
 import { metasDeArea, type AvanceArea } from '@/produccion/produccion';
 import { AREAS_FLOW } from '@/compartido/mock-data';
@@ -20,8 +21,9 @@ async function rolDe(email: string): Promise<string | undefined> {
 // SOLO UN ADMINISTRADOR puede modificarla en una orden ya creada: cambiarla
 // mueve las cuentas y los puntos de reporte de todas las áreas.
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
-  const rol = await rolDe(email);
+  // La identidad viene de la sesión de Supabase, no de un encabezado.
+  const email = await emailDeSesion();
+  const rol = email ? await rolDe(email) : undefined;
   if (!email || !rol) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }

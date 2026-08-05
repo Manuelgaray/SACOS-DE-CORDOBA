@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
+import { createClient } from '@supabase/supabase-js';
 import { query } from '@/compartido/db';
 import { actorDe } from '@/autenticacion/auth-server';
+import { cambiarPasswordEnAuth } from '@/usuarios/api/usuario-individual';
 
 export const runtime = 'nodejs';
 
@@ -27,28 +28,32 @@ export async function PUT(req: Request) {
 
   if (quiereCambiarPass) {
     const nueva = body.password_nueva ?? '';
-    if (nueva.length < 4) {
-      return NextResponse.json({ error: 'La nueva contraseña debe tener al menos 4 caracteres' }, { status: 400 });
+    if (nueva.length < 6) {
+      return NextResponse.json(
+        { error: 'La nueva contraseña debe tener al menos 6 caracteres' },
+        { status: 400 },
+      );
     }
-    // Verificar la contraseña actual antes de cambiarla.
-    const { rows } = await query<{ password_hash: string }>(
-      'SELECT password_hash FROM usuarios WHERE email = $1',
-      [actor.email],
-    );
-    const hashActual = rows[0]?.password_hash ?? '';
-    const ok = await bcrypt.compare(body.password_actual ?? '', hashActual);
-    if (!ok) {
+
+    // La contraseña actual se comprueba contra Supabase intentando iniciar
+    // sesión con ella. Sin esto, a quien dejara la sesión abierta en un equipo
+    // le podrían cambiar la contraseña sin conocer la anterior.
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const llave = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+    const comprobador = createClient(url, llave, { auth: { persistSession: false } });
+    const { error: errActual } = await comprobador.auth.signInWithPassword({
+      email: actor.email,
+      password: body.password_actual ?? '',
+    });
+    if (errActual) {
       return NextResponse.json({ error: 'La contraseña actual no es correcta' }, { status: 400 });
     }
-    const nuevoHash = await bcrypt.hash(nueva, 10);
-    await query('UPDATE usuarios SET nombre = $2, password_hash = $3 WHERE email = $1', [
-      actor.email,
-      nombre,
-      nuevoHash,
-    ]);
-  } else {
-    await query('UPDATE usuarios SET nombre = $2 WHERE email = $1', [actor.email, nombre]);
+
+    const errorCambio = await cambiarPasswordEnAuth(actor.email, nueva);
+    if (errorCambio) return NextResponse.json({ error: errorCambio }, { status: 400 });
   }
+
+  await query('UPDATE usuarios SET nombre = $2 WHERE email = $1', [actor.email, nombre]);
 
   return NextResponse.json({
     usuario: { email: actor.email, nombre, rol: actor.rol, area_asignada: actor.area_asignada },

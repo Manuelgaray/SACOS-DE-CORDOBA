@@ -10,6 +10,7 @@
 
 import { query } from '@/compartido/db';
 import { coincideElementoHoja } from '@/produccion/produccion';
+import { actorDe } from '@/autenticacion/auth-server';
 
 const VENTANA_FUSION_MIN = 10;
 
@@ -78,14 +79,10 @@ export async function sincronizarCorteDesdeHoja(
 
 // ── Validaciones compartidas de las rutas de la hoja ───────────────────────────
 
-export async function actorHoja(req: Request) {
-  const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
-  if (!email) return null;
-  const { rows } = await query<{ email: string; nombre: string; rol: string; area_asignada: string | null }>(
-    'SELECT email, nombre, rol, area_asignada FROM usuarios WHERE email = $1',
-    [email],
-  );
-  return rows[0] ?? null;
+// La identidad sale de la sesión de Supabase (cookie verificada), no de un
+// encabezado. `req` se conserva por compatibilidad con las rutas que lo pasan.
+export async function actorHoja(_req?: Request) {
+  return actorDe();
 }
 
 export function puedeEditarHoja(actor: { rol: string; area_asignada: string | null }): boolean {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
+import { emailDeSesion } from '@/autenticacion/supabase-servidor';
 import { cerrarOrdenSiCompleta } from '@/produccion/api/cierre-automatico';
 
 export const runtime = 'nodejs';
@@ -38,8 +39,9 @@ export async function POST(req: Request) {
   }
 
   // ── Autorización ──────────────────────────────────────────────────────────
-  const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
-  const usuario = await usuarioDe(email);
+  // La identidad viene de la sesión de Supabase, no de un encabezado.
+  const email = await emailDeSesion();
+  const usuario = email ? await usuarioDe(email) : null;
   if (!email || !usuario) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }

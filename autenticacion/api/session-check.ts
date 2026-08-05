@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
+import { emailDeSesion } from '@/autenticacion/supabase-servidor';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,8 @@ export const runtime = 'nodejs';
 // Si el token ya no coincide (caso raro: sesión obsoleta reemplazada, reset por
 // admin), devolvemos { valid: false } para que ese dispositivo cierre su sesión.
 export async function GET(req: Request) {
-  const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
+  // Quién eres lo dice la sesión de Supabase; el token identifica el dispositivo.
+  const email = await emailDeSesion();
   const token = req.headers.get('x-session-token') ?? '';
 
   if (!email || !token) {

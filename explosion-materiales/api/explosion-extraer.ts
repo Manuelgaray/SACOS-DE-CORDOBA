@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
+import { emailDeSesion } from '@/autenticacion/supabase-servidor';
 import { extraerElementosDePdf, pdfDesdeBase64 } from '@/explosion-materiales/pdf-corte';
 
 export const runtime = 'nodejs';
@@ -16,8 +17,9 @@ async function rolDe(email: string): Promise<string | undefined> {
 // exista) y devuelve los elementos de corte detectados, con medidas prellenadas
 // donde se pudo. NO guarda nada: se usa en "Nueva orden" para revisar/corregir.
 export async function POST(req: Request) {
-  const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
-  const rol = await rolDe(email);
+  // La identidad viene de la sesión de Supabase, no de un encabezado.
+  const email = await emailDeSesion();
+  const rol = email ? await rolDe(email) : undefined;
   if (!email || !rol) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }

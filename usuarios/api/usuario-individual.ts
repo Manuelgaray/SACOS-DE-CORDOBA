@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { query } from '@/compartido/db';
+import { supabaseAdmin } from '@/autenticacion/supabase-servidor';
 import { actorDe, esRolValido, contarAdmins } from '@/autenticacion/auth-server';
 
 export const runtime = 'nodejs';
@@ -60,21 +60,22 @@ export async function PUT(req: Request, { params }: { params: { email: string } 
   const area = rol === 'supervisor' ? (body.area_asignada || null) : null;
   const password = body.password ?? '';
 
+  // La contraseña vive en Supabase Auth: se cambia allá, no en nuestra tabla.
   if (password) {
-    if (password.length < 4) {
-      return NextResponse.json({ error: 'La contraseña debe tener al menos 4 caracteres' }, { status: 400 });
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'La contraseña debe tener al menos 6 caracteres' },
+        { status: 400 },
+      );
     }
-    const hash = await bcrypt.hash(password, 10);
-    await query(
-      'UPDATE usuarios SET nombre = $2, rol = $3, area_asignada = $4, password_hash = $5 WHERE email = $1',
-      [email, nombre, rol, area, hash],
-    );
-  } else {
-    await query(
-      'UPDATE usuarios SET nombre = $2, rol = $3, area_asignada = $4 WHERE email = $1',
-      [email, nombre, rol, area],
-    );
+    const error = await cambiarPasswordEnAuth(email, password);
+    if (error) return NextResponse.json({ error }, { status: 400 });
   }
+
+  await query(
+    'UPDATE usuarios SET nombre = $2, rol = $3, area_asignada = $4 WHERE email = $1',
+    [email, nombre, rol, area],
+  );
 
   const usuario: UsuarioRow = { email, nombre, rol, area_asignada: area };
   return NextResponse.json({ usuario });
@@ -103,6 +104,25 @@ export async function DELETE(req: Request, { params }: { params: { email: string
     );
   }
 
+  // Se borra también la CUENTA en Supabase Auth: si solo quitáramos el perfil,
+  // el correo seguiría pudiendo iniciar sesión (aunque sin permisos).
+  const admin = supabaseAdmin();
+  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const cuenta = data?.users.find(u => u.email?.toLowerCase() === email);
+  if (cuenta) await admin.auth.admin.deleteUser(cuenta.id);
+
   await query('DELETE FROM usuarios WHERE email = $1', [email]);
   return NextResponse.json({ ok: true });
+}
+
+/** Cambia la contraseña en Supabase Auth. Devuelve el error, o null si salió bien. */
+export async function cambiarPasswordEnAuth(email: string, password: string): Promise<string | null> {
+  const admin = supabaseAdmin();
+  // La API de administración trabaja por id, así que primero se busca el correo.
+  const { data, error: errLista } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (errLista) return 'No se pudo consultar la cuenta.';
+  const cuenta = data.users.find(u => u.email?.toLowerCase() === email);
+  if (!cuenta) return 'La cuenta no existe en el sistema de acceso.';
+  const { error } = await admin.auth.admin.updateUserById(cuenta.id, { password });
+  return error ? error.message : null;
 }

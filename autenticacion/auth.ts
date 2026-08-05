@@ -3,19 +3,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  Autenticación
 //
-//  El login valida las credenciales en el servidor (POST /api/login → tabla
-//  `usuarios` de PostgreSQL, con contraseña hasheada). La sesión resultante se
-//  guarda en localStorage para mantener la navegación en cliente.
+//  La contraseña la valida SUPABASE AUTH y la sesión vive en cookies firmadas
+//  que el servidor verifica en cada petición. Ese es el mecanismo de seguridad.
 //
-//  ⚠ La sesión en localStorage no es una auth "segura" (no hay cookie httpOnly ni
-//     protección de ruta en servidor). Suficiente para uso local en la planta.
+//  En localStorage solo queda una COPIA del perfil (nombre, rol, área y el
+//  token de sesión única) para que la interfaz sepa qué mostrar sin consultar
+//  al servidor en cada render. No es una credencial: manipularla no da acceso
+//  a nada, porque el servidor nunca la lee.
 //
-//  Para agregar / cambiar usuarios: edita scripts/seed-users.mjs y vuelve a correr
-//  `node scripts/seed-users.mjs`.
+//  Los usuarios se administran desde la pantalla Usuarios (solo admin).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
 import type { Area } from '@/compartido/mock-data';
+import { supabaseNavegador } from '@/autenticacion/supabase-cliente';
 
 export type Rol = 'admin' | 'diseno' | 'supervisor';
 
@@ -41,31 +42,50 @@ const LS_SESSION = 'sacos.session.v1';
 
 // ─── Acciones ───────────────────────────────────────────────────────────────────
 
-/** Valida credenciales contra el servidor y, si son correctas, guarda la sesión. */
+/**
+ * Inicia sesión. La contraseña la valida SUPABASE (no viaja a nuestra API), y
+ * la sesión queda en cookies firmadas que el servidor verifica en cada
+ * petición. Después se reclama la sesión de planta, que aplica la regla de un
+ * solo dispositivo por cuenta y resuelve el rol y el área.
+ */
 export async function login(
   email: string,
   password: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = supabaseNavegador();
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  if (error) {
+    const credencialesMal = /invalid login credentials/i.test(error.message);
+    return {
+      ok: false,
+      error: credencialesMal ? 'Email o contraseña incorrectos' : error.message,
+    };
+  }
+
   let res: Response;
   try {
     res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: email.trim().toLowerCase(),
-        password,
-        // Token de este navegador (si hay): permite re-entrar desde el MISMO
-        // dispositivo aunque la sesión siga marcada activa en el servidor.
-        token_actual: getSession()?.token,
-      }),
+      // Token de este navegador (si hay): permite re-entrar desde el MISMO
+      // dispositivo aunque la sesión siga marcada activa en el servidor.
+      body: JSON.stringify({ token_actual: getSession()?.token }),
     });
   } catch {
+    await supabase.auth.signOut();
     return { ok: false, error: 'No se pudo conectar con el servidor' };
   }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { ok: false, error: data?.error ?? 'Email o contraseña incorrectos' };
+    // La cuenta existe pero no puede entrar (otra sesión activa, o sin perfil):
+    // se deshace el inicio de sesión para no dejarla a medias.
+    await supabase.auth.signOut();
+    return { ok: false, error: data?.error ?? 'No se pudo iniciar sesión' };
   }
 
   try {
@@ -77,24 +97,29 @@ export async function login(
   return { ok: true };
 }
 
-export function logout() {
-  // Liberar la sesión en el servidor (fire-and-forget): así la cuenta queda
-  // disponible AL INSTANTE para entrar desde otro dispositivo. `keepalive`
-  // deja que la petición sobreviva a la navegación al login.
+export async function logout() {
+  // Liberar la sesión de planta: así la cuenta queda disponible AL INSTANTE
+  // para entrar desde otro dispositivo, sin esperar a que caduque el heartbeat.
   const s = getSession();
   if (s?.token) {
     try {
-      fetch('/api/logout', {
+      await fetch('/api/logout', {
         method: 'POST',
-        headers: { 'x-user-email': s.email, 'x-session-token': s.token },
+        headers: { 'x-session-token': s.token },
         keepalive: true,
-      }).catch(() => {});
+      });
     } catch {
       /* no-op */
     }
   }
   try {
     localStorage.removeItem(LS_SESSION);
+  } catch {
+    /* no-op */
+  }
+  // Y cerrar la sesión de Supabase (borra las cookies).
+  try {
+    await supabaseNavegador().auth.signOut();
   } catch {
     /* no-op */
   }
@@ -141,10 +166,7 @@ export async function sesionVigente(sesion: Sesion | null): Promise<boolean> {
   try {
     const res = await fetch('/api/session/check', {
       method: 'GET',
-      headers: {
-        'x-user-email': sesion.email,
-        'x-session-token': sesion.token,
-      },
+      headers: { 'x-session-token': sesion.token },
       cache: 'no-store',
     });
     if (!res.ok) return true; // error del servidor: no cerramos por las dudas

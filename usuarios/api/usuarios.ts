@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { query } from '@/compartido/db';
+import { supabaseAdmin } from '@/autenticacion/supabase-servidor';
 import { actorDe, esRolValido } from '@/autenticacion/auth-server';
 
 export const runtime = 'nodejs';
@@ -60,13 +60,28 @@ export async function POST(req: Request) {
   }
 
   const area = rol === 'supervisor' ? (body.area_asignada || null) : null;
-  const hash = await bcrypt.hash(password, 10);
+
+  // La CUENTA (correo y contraseña) vive en Supabase Auth; aquí solo se guarda
+  // el perfil de planta: nombre, rol y área. `email_confirm` evita el correo de
+  // verificación: las altas las hace un administrador, no el propio usuario.
+  const { error: errorAuth } = await supabaseAdmin().auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (errorAuth) {
+    const yaExiste = /already/i.test(errorAuth.message);
+    return NextResponse.json(
+      { error: yaExiste ? 'Ya existe un usuario con ese email' : errorAuth.message },
+      { status: yaExiste ? 409 : 400 },
+    );
+  }
 
   const { rowCount } = await query(
     `INSERT INTO usuarios (email, password_hash, nombre, rol, area_asignada)
-     VALUES ($1, $2, $3, $4, $5)
+     VALUES ($1, '', $2, $3, $4)
      ON CONFLICT (email) DO NOTHING`,
-    [email, hash, nombre, rol, area],
+    [email, nombre, rol, area],
   );
 
   if (!rowCount) {

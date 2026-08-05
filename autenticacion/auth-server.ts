@@ -1,12 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  Helpers de autorización en el SERVIDOR (rutas API, runtime nodejs).
 //
-//  La sesión del cliente vive en localStorage y manda el header `x-user-email`.
-//  Aquí resolvemos ese email contra la tabla `usuarios` para conocer rol/área.
-//  No es auth criptográfica (uso de planta local), pero centraliza el chequeo.
+//  La identidad sale de la SESIÓN DE SUPABASE (cookie firmada), que el servidor
+//  verifica contra Supabase en cada petición. Antes se confiaba en el
+//  encabezado `x-user-email`, que cualquiera podía escribir: en una red local
+//  era discutible, en internet era una puerta abierta.
+//
+//  El rol y el área siguen viviendo en nuestra tabla `usuarios`, que es la
+//  fuente de la verdad de los permisos; Supabase solo dice QUIÉN eres.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { query } from '@/compartido/db';
+import { emailDeSesion } from '@/autenticacion/supabase-servidor';
 
 export interface ActorDB {
   email: string;
@@ -15,15 +20,24 @@ export interface ActorDB {
   area_asignada: string | null;
 }
 
-/** Devuelve el usuario que hace la petición (según x-user-email) o null. */
-export async function actorDe(req: Request): Promise<ActorDB | null> {
-  const email = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
-  if (!email) return null;
+/** Perfil (rol y área) de un correo ya autenticado. */
+export async function perfilDe(email: string): Promise<ActorDB | null> {
   const { rows } = await query<ActorDB>(
     'SELECT email, nombre, rol, area_asignada FROM usuarios WHERE email = $1',
     [email],
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Usuario que hace la petición, o null. El parámetro `req` se conserva por
+ * compatibilidad con las rutas que ya lo pasaban, pero YA NO se lee de él:
+ * la identidad viene de la cookie de sesión.
+ */
+export async function actorDe(_req?: Request): Promise<ActorDB | null> {
+  const email = await emailDeSesion();
+  if (!email) return null;
+  return perfilDe(email);
 }
 
 /** Cuántos administradores hay (para no dejar el sistema sin admin). */

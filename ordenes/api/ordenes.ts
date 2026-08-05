@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
+import { emailDeSesion } from '@/autenticacion/supabase-servidor';
 import { rowToOrden, ORDEN_COLS, type OrdenRow } from '@/ordenes/orden-map';
 import { generarAvance } from '@/produccion/produccion';
 import { normalizarElementos } from '@/explosion-materiales/explosion';
@@ -10,7 +11,8 @@ export const runtime = 'nodejs';
 // POST /api/ordenes — crea una orden (carátula + PDF embebido) y genera sus avances.
 // Autorización: el header `x-user-email` identifica al usuario; solo admin/diseño suben.
 export async function POST(req: Request) {
-  const actorEmail = (req.headers.get('x-user-email') ?? '').trim().toLowerCase();
+  // La identidad viene de la sesión de Supabase, no de un encabezado.
+  const actorEmail = await emailDeSesion();
   if (!actorEmail) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }
