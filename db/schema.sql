@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS specs (
   tipo_saco       TEXT NOT NULL DEFAULT '',
   grado           TEXT NOT NULL DEFAULT '',
   corte_elementos JSONB,
+  pdf_path        TEXT,
   pdf_data        BYTEA,
   pdf_nombre      TEXT,
   pdf_mime        TEXT DEFAULT 'application/pdf',
@@ -78,6 +79,9 @@ CREATE TABLE IF NOT EXISTS ordenes (
   fecha_inicio   TIMESTAMPTZ,
   fecha_entrega  DATE,
   -- El diseño y las especificaciones técnicas viven en el PDF subido.
+  -- El archivo va a Supabase Storage (bucket privado) y aquí queda su ruta;
+  -- pdf_data solo sobrevive para las órdenes anteriores a esa migración.
+  pdf_path       TEXT,
   pdf_data       BYTEA,
   pdf_nombre     TEXT,
   pdf_mime       TEXT DEFAULT 'application/pdf',

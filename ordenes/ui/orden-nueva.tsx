@@ -19,9 +19,10 @@ import {
   mensajeLectura,
 } from '@/explosion-materiales/ui/ExplosionMateriales';
 import { ConfirmModal } from '@/compartido/ui/Modal';
+import { subirPdf } from '@/compartido/subir-pdf';
 
-// El PDF se guarda en PostgreSQL (columna bytea). Limitamos el tamaño para evitar
-// subidas enormes; 10 MB es de sobra para la carátula/diseño de una orden.
+// El PDF sube DIRECTO a Supabase Storage (no pasa por nuestro servidor). El
+// límite es el del bucket; 10 MB es de sobra para el plano de una orden.
 const MAX_MB = 10;
 const MAX_PDF_BYTES = MAX_MB * 1024 * 1024;
 
@@ -58,6 +59,12 @@ export default function NuevaOrdenPage() {
   });
 
   const [pdfName, setPdfName] = useState('');
+  // El PDF ya NO viaja en base64 a nuestra API: el archivo se sube directo a
+  // Storage. Aquí se guarda el File (para subirlo) y, si el plano se hereda de
+  // un spec, la ruta del objeto que el servidor copiará.
+  const [pdfArchivo, setPdfArchivo] = useState<File | null>(null);
+  const [pdfCopiarDe, setPdfCopiarDe] = useState('');
+  // El data URL solo sirve para "Leer del PDF" (OCR) y para saber si hay plano.
   const [pdfDataUrl, setPdfDataUrl] = useState('');
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
@@ -102,7 +109,9 @@ export default function NuevaOrdenPage() {
   const corteQuitar = (idx: number) => setCorteElementos(prev => prev.filter((_, i) => i !== idx));
 
   async function leerCorteDelPdf() {
-    if (!pdfDataUrl) return;
+    // Solo con un archivo local: el heredado vive en Storage y su explosión ya
+    // viene del diseño, así que no hace falta releerlo.
+    if (!pdfArchivo || !pdfDataUrl.startsWith('data:')) return;
     setLeyendoCorte(true);
     setCorteMsg(null);
     try {
@@ -218,7 +227,7 @@ export default function NuevaOrdenPage() {
         type Fuente = {
           tipo_saco: string; medida: string; carga_lbs: number;
           grado: string | null; corte_elementos: ElementoCorte[] | null;
-          pdf_url: string | null; pdf_nombre?: string | null;
+          pdf_url: string | null; pdf_path?: string | null; pdf_nombre?: string | null;
         };
         // El diseño registrado manda; la última orden es el respaldo.
         const diseno = (data.diseno ?? null) as Fuente | null;
@@ -229,8 +238,8 @@ export default function NuevaOrdenPage() {
         // El PDF se busca aparte: un diseño puede tener las especificaciones
         // capturadas y todavía no su plano (p. ej. specs viejos), y en ese caso
         // sirve el de la última orden.
-        const pdfUrl = diseno?.pdf_url || ultimaOrden?.pdf_url || null;
-        const pdfNombre = (diseno?.pdf_url ? diseno.pdf_nombre : ultimaOrden?.pdf_nombre) || '';
+        const pdfRuta = diseno?.pdf_path || ultimaOrden?.pdf_path || null;
+        const pdfNombre = (diseno?.pdf_path ? diseno.pdf_nombre : ultimaOrden?.pdf_nombre) || '';
 
         const medidaSep = separarMedida(o?.medida ?? '');
         setForm(f => ({
@@ -262,9 +271,13 @@ export default function NuevaOrdenPage() {
           // de otro spec, se reemplaza; si el spec nuevo no tiene plano, se
           // quita (nunca debe quedar el diseño de otro producto en la orden).
           // Un PDF que el usuario subió a mano sí se respeta.
+          // Ya no se descarga ni se vuelve a subir: basta con apuntar al objeto
+          // del spec y el servidor lo copia al crear la orden.
           const puedeReemplazar = !pdfRef.current.hay || pdfRef.current.deSpec;
           if (puedeReemplazar) {
-            if (!pdfUrl) {
+            setPdfArchivo(null);
+            if (!pdfRuta) {
+              setPdfCopiarDe('');
               setPdfDataUrl('');
               setPdfName('');
               setPdfDeSpec(false);
@@ -272,28 +285,11 @@ export default function NuevaOrdenPage() {
                 setPdfError(`El spec ${spec} no tiene PDF registrado. Súbelo aquí.`);
               }
             } else {
-              try {
-                // El endpoint del PDF es privado: hay que mandar la identidad
-                // en el header, igual que el visor.
-                const resPdf = await fetch(pdfUrl, { headers: { 'x-user-email': sesion.email } });
-                if (!resPdf.ok) {
-                  setPdfError('No se pudo traer el PDF de este spec. Súbelo manualmente.');
-                } else {
-                  const blob = await resPdf.blob();
-                  const dataUrl = await new Promise<string>((resolve, reject) => {
-                    const r = new FileReader();
-                    r.onload = () => resolve(r.result as string);
-                    r.onerror = () => reject(r.error);
-                    r.readAsDataURL(blob);
-                  });
-                  setPdfDataUrl(dataUrl);
-                  setPdfName(pdfNombre || `${spec}.pdf`);
-                  setPdfDeSpec(true);
-                  setPdfError(null);
-                }
-              } catch {
-                setPdfError('No se pudo traer el PDF de este spec. Súbelo manualmente.');
-              }
+              setPdfCopiarDe(pdfRuta);
+              setPdfDataUrl(pdfRuta); // marca "hay plano" (el OCR pide archivo local)
+              setPdfName(pdfNombre || `${spec}.pdf`);
+              setPdfDeSpec(true);
+              setPdfError(null);
             }
           }
         }
@@ -323,19 +319,21 @@ export default function NuevaOrdenPage() {
   function procesarArchivo(file: File | undefined | null) {
     setPdfError(null);
     setPdfDeSpec(false); // un archivo elegido a mano reemplaza al heredado del spec
-    if (!file) { setPdfName(''); setPdfDataUrl(''); return; }
+    setPdfCopiarDe('');
+    if (!file) { setPdfName(''); setPdfDataUrl(''); setPdfArchivo(null); return; }
 
     if (file.type !== 'application/pdf') {
       setPdfError('El archivo debe ser un PDF.');
-      setPdfName(''); setPdfDataUrl('');
+      setPdfName(''); setPdfDataUrl(''); setPdfArchivo(null);
       return;
     }
     if (file.size > MAX_PDF_BYTES) {
-      setPdfError(`El PDF pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. El máximo es ${MAX_MB} MB (límite del navegador).`);
-      setPdfName(''); setPdfDataUrl('');
+      setPdfError(`El PDF pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. El máximo es ${MAX_MB} MB.`);
+      setPdfName(''); setPdfDataUrl(''); setPdfArchivo(null);
       return;
     }
 
+    setPdfArchivo(file);
     const reader = new FileReader();
     reader.onload = () => {
       setPdfDataUrl(reader.result as string);
@@ -358,7 +356,7 @@ export default function NuevaOrdenPage() {
   // El submit del form solo valida y abre la confirmación; crearOrden hace el POST.
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!pdfDataUrl) {
+    if (!pdfArchivo && !pdfCopiarDe) {
       setPdfError('Sube el PDF de la orden.');
       return;
     }
@@ -371,6 +369,20 @@ export default function NuevaOrdenPage() {
     setPdfError(null);
 
     try {
+      // El plano sube DIRECTO a Storage; a la API solo le llega la ruta. Si se
+      // hereda del spec, ni siquiera se sube: el servidor copia el objeto.
+      let rutaPdf = '';
+      if (pdfArchivo) {
+        try {
+          rutaPdf = await subirPdf(pdfArchivo, { tipo: 'temp' });
+        } catch (e) {
+          setPdfError(e instanceof Error ? e.message : 'No se pudo subir el PDF.');
+          setSaving(false);
+          setConfirmarCrear(false);
+          return;
+        }
+      }
+
       const res = await fetch('/api/ordenes', {
         method: 'POST',
         headers: {
@@ -391,7 +403,8 @@ export default function NuevaOrdenPage() {
           fecha_entrega: form.fecha_entrega,
           linea: form.linea,
           status: form.status,
-          pdf_base64: pdfDataUrl,
+          pdf_path: rutaPdf,
+          pdf_copiar_de: rutaPdf ? '' : pdfCopiarDe,
           pdf_nombre: pdfName,
           corte_elementos: corteElementos,
         }),
@@ -626,8 +639,8 @@ export default function NuevaOrdenPage() {
               <button
                 type="button"
                 onClick={leerCorteDelPdf}
-                disabled={leyendoCorte || !pdfDataUrl}
-                title={!pdfDataUrl ? 'Primero sube el PDF arriba' : undefined}
+                disabled={leyendoCorte || !pdfArchivo}
+                title={!pdfArchivo ? 'Sube un PDF aquí para poder leerlo' : undefined}
                 className="flex items-center gap-1.5 text-xs font-medium text-[#1A1A1A] border border-brand-green/30 hover:bg-brand-green-50 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {leyendoCorte ? 'Leyendo PDF…' : 'Leer del PDF'}

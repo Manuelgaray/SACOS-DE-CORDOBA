@@ -17,17 +17,17 @@ export interface DisenoBody {
   tipo_saco?: string;
   grado?: string;
   corte_elementos?: unknown;
-  pdf_base64?: string;
+  // Ruta dentro del bucket: el navegador ya subió el archivo a Storage.
+  pdf_path?: string;
   pdf_nombre?: string;
 }
 
-/** Convierte el PDF que manda el cliente (data URL o base64 puro) a un buffer. */
-export function pdfDeBody(pdfField: string): Buffer | null {
-  if (!pdfField) return null;
-  const coma = pdfField.indexOf(',');
-  const raw = coma >= 0 ? pdfField.slice(coma + 1) : pdfField;
-  const buf = Buffer.from(raw, 'base64');
-  return buf.length > 0 ? buf : null;
+/** Valida la ruta del plano. Vacía = no se toca el que ya estuviera guardado. */
+export function rutaPdfDeBody(body: DisenoBody): string | null {
+  const ruta = String(body.pdf_path ?? '').trim();
+  if (!ruta) return null;
+  // Solo rutas que emitió nuestro endpoint de subida.
+  return /^specs\//.test(ruta) ? ruta : null;
 }
 
 export function puedeEditarRegistro(actor: { rol: string }): boolean {
@@ -69,14 +69,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const pdf = pdfDeBody(String(body.pdf_base64 ?? ''));
+  const pdf = rutaPdfDeBody(body);
   const elementos = body.corte_elementos == null ? null : normalizarElementos(body.corte_elementos);
 
   try {
     await query(
       `INSERT INTO specs (
          spec, cliente, medida, carga_lbs, tipo_saco, grado,
-         corte_elementos, pdf_data, pdf_nombre, registrado_por, actualizado_en
+         corte_elementos, pdf_path, pdf_nombre, registrado_por, actualizado_en
        ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, now())`,
       [
         spec, cliente,

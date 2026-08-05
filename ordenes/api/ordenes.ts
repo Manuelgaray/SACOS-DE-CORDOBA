@@ -3,6 +3,7 @@ import { query } from '@/compartido/db';
 import { rowToOrden, ORDEN_COLS, type OrdenRow } from '@/ordenes/orden-map';
 import { generarAvance } from '@/produccion/produccion';
 import { normalizarElementos } from '@/explosion-materiales/explosion';
+import { moverObjeto, copiarObjeto, rutaOrden, rutaSpec } from '@/compartido/storage';
 
 export const runtime = 'nodejs';
 
@@ -31,16 +32,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Petición inválida' }, { status: 400 });
   }
 
-  // PDF: viene como data URL o base64 puro
-  const pdfField = String(body.pdf_base64 ?? '');
-  if (!pdfField) {
+  // ── El plano ───────────────────────────────────────────────────────────────
+  // El navegador ya lo subió a Storage (ruta temporal) o pide heredar el del
+  // spec. En ninguno de los dos casos el archivo pasa por aquí.
+  const pdfTemporal = String(body.pdf_path ?? '').trim();
+  const pdfCopiarDe = String(body.pdf_copiar_de ?? '').trim();
+  if (!pdfTemporal && !pdfCopiarDe) {
     return NextResponse.json({ error: 'Falta el PDF de la orden' }, { status: 400 });
   }
-  const comma = pdfField.indexOf(',');
-  const rawB64 = comma >= 0 ? pdfField.slice(comma + 1) : pdfField;
-  const pdfBuf = Buffer.from(rawB64, 'base64');
-  if (pdfBuf.length === 0) {
-    return NextResponse.json({ error: 'El PDF está vacío o es inválido' }, { status: 400 });
+  // Las rutas vienen de nuestro propio endpoint de subida; se validan igual.
+  if (pdfTemporal && !pdfTemporal.startsWith('temp/')) {
+    return NextResponse.json({ error: 'Ruta de archivo no válida' }, { status: 400 });
+  }
+  if (pdfCopiarDe && !/^(specs|ordenes)\//.test(pdfCopiarDe)) {
+    return NextResponse.json({ error: 'Ruta de archivo no válida' }, { status: 400 });
   }
 
   const str = (k: string) => String(body[k] ?? '').trim();
@@ -98,10 +103,36 @@ export async function POST(req: Request) {
   const elementos = normalizarElementos(body.corte_elementos);
   const corteJson = elementos.length > 0 ? JSON.stringify(elementos) : null;
 
+  // ── El plano queda en su lugar definitivo ──────────────────────────────────
+  // Subida nueva: se mueve de temp/ a ordenes/<id>.pdf. Heredado del spec: se
+  // copia, para que cada orden tenga su propio archivo y borrar un diseño no
+  // deje órdenes sin plano.
+  const rutaFinal = rutaOrden(id);
+  const colocado = pdfTemporal
+    ? await moverObjeto(pdfTemporal, rutaFinal)
+    : await copiarObjeto(pdfCopiarDe, rutaFinal);
+  if (!colocado) {
+    return NextResponse.json(
+      { error: 'No se pudo guardar el PDF en el almacenamiento. Vuelve a intentarlo.' },
+      { status: 502 },
+    );
+  }
+
   // ── El diseño del spec se completa solo ────────────────────────────────────
   // Si el spec ya tenía diseño registrado en Clientes, no se toca: ese es la
   // fuente de la verdad. Pero si le faltaba algo (specs viejos, o dados de alta
   // desde aquí), esta orden lo llena, y la siguiente ya lo hereda.
+  const { rows: specSinPlano } = await query<{ falta: boolean }>(
+    'SELECT (pdf_path IS NULL AND pdf_data IS NULL) AS falta FROM specs WHERE UPPER(spec) = $1',
+    [specCap],
+  );
+  // El spec se queda con su propia copia del plano.
+  let rutaSpecPdf: string | null = null;
+  if (specSinPlano[0]?.falta) {
+    const destino = rutaSpec(specCap);
+    if (await copiarObjeto(rutaFinal, destino)) rutaSpecPdf = destino;
+  }
+
   await query(
     `UPDATE specs SET
        medida          = CASE WHEN medida    = ''   THEN $2 ELSE medida    END,
@@ -109,7 +140,7 @@ export async function POST(req: Request) {
        tipo_saco       = CASE WHEN tipo_saco = ''   THEN $4 ELSE tipo_saco END,
        grado           = CASE WHEN grado     = ''   THEN $5 ELSE grado     END,
        corte_elementos = COALESCE(corte_elementos, $6::jsonb),
-       pdf_data        = COALESCE(pdf_data, $7),
+       pdf_path        = COALESCE(pdf_path, $7),
        pdf_nombre      = COALESCE(pdf_nombre, $8),
        registrado_por  = COALESCE(registrado_por, $9),
        actualizado_en  = now()
@@ -121,7 +152,7 @@ export async function POST(req: Request) {
       str('tipo_saco'),
       str('grado'),
       corteJson,
-      pdfBuf,
+      rutaSpecPdf,
       String(body.pdf_nombre ?? '').trim() || null,
       elaboradoPor,
     ],
@@ -131,7 +162,7 @@ export async function POST(req: Request) {
     `INSERT INTO ordenes (
        id, numero_orden, cliente, spec, medida, cantidad, carga_lbs, tipo_saco,
        orden_cliente, embarcar_a, grado, area_actual, status, linea,
-       fecha_creacion, fecha_inicio, fecha_entrega, pdf_data, pdf_nombre, corte_elementos,
+       fecha_creacion, fecha_inicio, fecha_entrega, pdf_path, pdf_nombre, corte_elementos,
        elaborado_por
      ) VALUES (
        $1, $2, $3, $4, $5, $6, $7, $8,
@@ -158,7 +189,7 @@ export async function POST(req: Request) {
       ahora,
       fechaInicio,
       (body.fecha_entrega as string) || null,
-      pdfBuf,
+      rutaFinal,
       str('pdf_nombre') || 'orden.pdf',
       corteJson,
       elaboradoPor,

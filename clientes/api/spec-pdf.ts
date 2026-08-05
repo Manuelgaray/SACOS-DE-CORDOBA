@@ -1,6 +1,7 @@
 import { query } from '@/compartido/db';
 import { actorDe } from '@/autenticacion/auth-server';
 import { cabecerasPdf, etagDe } from '@/compartido/archivo-http';
+import { urlDeDescarga } from '@/compartido/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,14 +18,26 @@ export async function GET(req: Request, { params }: { params: { spec: string } }
   // Primero solo los metadatos: el ETag lleva la fecha de actualización, así que
   // si el diseño se reemplaza el navegador lo nota y vuelve a bajarlo.
   const { rows: meta } = await query<{
-    bytes: number | null; pdf_mime: string | null; pdf_nombre: string | null; actualizado_en: Date | string;
+    pdf_path: string | null; bytes: number | null;
+    pdf_mime: string | null; pdf_nombre: string | null; actualizado_en: Date | string;
   }>(
-    `SELECT octet_length(pdf_data) AS bytes, pdf_mime, pdf_nombre, actualizado_en
+    `SELECT pdf_path, octet_length(pdf_data) AS bytes, pdf_mime, pdf_nombre, actualizado_en
        FROM specs WHERE UPPER(spec) = $1`,
     [spec],
   );
   const m = meta[0];
-  if (!m || !m.bytes) return new Response('PDF no encontrado', { status: 404 });
+  if (!m) return new Response('Spec no encontrado', { status: 404 });
+
+  // El plano vive en Storage: se redirige a una URL firmada y el navegador lo
+  // baja directo de Supabase, sin pasar por el límite de tamaño de Vercel.
+  if (m.pdf_path) {
+    const firmada = await urlDeDescarga(m.pdf_path);
+    if (!firmada) return new Response('PDF no encontrado', { status: 404 });
+    return Response.redirect(firmada, 307);
+  }
+
+  // ── Compatibilidad: diseños cuyo PDF aún vive en la base ───────────────────
+  if (!m.bytes) return new Response('PDF no encontrado', { status: 404 });
 
   // El ETag no lleva el spec: puede traer letras fuera de latin-1 y las
   // cabeceras no las admiten. Con tamaño y fecha basta (es único por URL).

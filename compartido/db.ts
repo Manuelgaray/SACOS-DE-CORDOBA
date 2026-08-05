@@ -21,9 +21,29 @@ if (!process.env.DATABASE_URL) {
 // Reutiliza el pool entre recargas en caliente de Next (evita agotar conexiones).
 const globalForPg = globalThis as unknown as { _sacosPool?: Pool };
 
+const url = process.env.DATABASE_URL!;
+
+// Fuera de la red local (Supabase y cualquier host remoto) la conexión va por
+// TLS. En localhost no, porque Postgres de escritorio no lo trae configurado.
+const remota = !/@(localhost|127\.0\.0\.1)[:/]/.test(url);
+
+// En serverless cada instancia atiende una petición a la vez: con un pool
+// grande por instancia se agotan las conexiones del servidor. En un servidor
+// propio (o en desarrollo) sí conviene un pool normal.
+const enServerless = !!process.env.VERCEL;
+
 export const pool =
   globalForPg._sacosPool ??
-  new Pool({ connectionString: process.env.DATABASE_URL });
+  new Pool({
+    connectionString: url,
+    max: enServerless ? 1 : 10,
+    // El certificado de Supabase lo firma una CA que Node no trae de fábrica;
+    // se cifra igual, solo no se valida la cadena.
+    ssl: remota ? { rejectUnauthorized: false } : undefined,
+    // Serverless: no dejar conexiones ociosas colgadas entre invocaciones.
+    idleTimeoutMillis: enServerless ? 10_000 : 30_000,
+    connectionTimeoutMillis: 10_000,
+  });
 
 if (process.env.NODE_ENV !== 'production') globalForPg._sacosPool = pool;
 

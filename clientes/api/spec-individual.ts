@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { query } from '@/compartido/db';
 import { actorDe } from '@/autenticacion/auth-server';
 import { normalizarElementos } from '@/explosion-materiales/explosion';
-import { pdfDeBody, puedeEditarRegistro, type DisenoBody } from '@/clientes/api/specs';
+import { rutaPdfDeBody, puedeEditarRegistro, type DisenoBody } from '@/clientes/api/specs';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +15,7 @@ interface FilaSpec {
   grado: string;
   corte_elementos: unknown;
   has_pdf: boolean;
+  pdf_path: string | null;
   pdf_nombre: string | null;
   registrado_por: string | null;
   actualizado_en: Date | string;
@@ -22,7 +23,8 @@ interface FilaSpec {
 
 const COLS_SPEC = `
   spec, cliente, medida, carga_lbs, tipo_saco, grado, corte_elementos,
-  (pdf_data IS NOT NULL) AS has_pdf, pdf_nombre, registrado_por, actualizado_en
+  (pdf_path IS NOT NULL OR pdf_data IS NOT NULL) AS has_pdf,
+  pdf_path, pdf_nombre, registrado_por, actualizado_en
 `;
 
 function mapDiseno(r: FilaSpec) {
@@ -35,6 +37,7 @@ function mapDiseno(r: FilaSpec) {
     grado: r.grado,
     corte_elementos: r.corte_elementos == null ? null : normalizarElementos(r.corte_elementos),
     pdf_url: r.has_pdf ? `/api/specs/${encodeURIComponent(r.spec)}/pdf` : null,
+    pdf_path: r.pdf_path,
     pdf_nombre: r.pdf_nombre,
     registrado_por: r.registrado_por,
     actualizado_en: new Date(r.actualizado_en).toISOString(),
@@ -61,10 +64,10 @@ export async function GET(req: Request, { params }: { params: { spec: string } }
   const { rows: ordRows } = await query<{
     id: string; cliente: string; tipo_saco: string; medida: string;
     carga_lbs: number; grado: string | null; corte_elementos: unknown;
-    has_pdf: boolean; pdf_nombre: string | null;
+    has_pdf: boolean; pdf_nombre: string | null; pdf_path: string | null;
   }>(
     `SELECT id, cliente, tipo_saco, medida, carga_lbs, grado, corte_elementos,
-            (pdf_data IS NOT NULL) AS has_pdf, pdf_nombre
+            (pdf_path IS NOT NULL OR pdf_data IS NOT NULL) AS has_pdf, pdf_nombre, pdf_path
        FROM ordenes
       WHERE UPPER(TRIM(spec)) = $1
       ORDER BY fecha_creacion DESC
@@ -90,6 +93,7 @@ export async function GET(req: Request, { params }: { params: { spec: string } }
           grado: o.grado,
           corte_elementos: o.corte_elementos == null ? null : normalizarElementos(o.corte_elementos),
           pdf_url: o.has_pdf ? `/api/ordenes/${o.id}/pdf` : null,
+          pdf_path: o.pdf_path,
           pdf_nombre: o.pdf_nombre,
         }
       : null,
@@ -114,7 +118,7 @@ export async function PUT(req: Request, { params }: { params: { spec: string } }
     return NextResponse.json({ error: 'Petición inválida' }, { status: 400 });
   }
 
-  const pdf = pdfDeBody(String(body.pdf_base64 ?? ''));
+  const pdf = rutaPdfDeBody(body);
   const elementos = body.corte_elementos == null ? null : normalizarElementos(body.corte_elementos);
 
   const { rows } = await query<FilaSpec>(
@@ -124,7 +128,7 @@ export async function PUT(req: Request, { params }: { params: { spec: string } }
        tipo_saco       = $4,
        grado           = $5,
        corte_elementos = COALESCE($6::jsonb, corte_elementos),
-       pdf_data        = COALESCE($7, pdf_data),
+       pdf_path        = COALESCE($7, pdf_path),
        pdf_nombre      = COALESCE($8, pdf_nombre),
        registrado_por  = $9,
        actualizado_en  = now()

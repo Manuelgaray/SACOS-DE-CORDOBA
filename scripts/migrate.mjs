@@ -340,6 +340,16 @@ const MIGRACIONES = [
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS specs_spec_upper ON specs (UPPER(spec))`,
   `CREATE INDEX IF NOT EXISTS specs_cliente ON specs (cliente)`,
+  // Los PDFs salen de la base y se van a Supabase Storage: aquí queda solo la
+  // ruta dentro del bucket. `pdf_data` se conserva por ahora para no perder
+  // nada mientras se migran los archivos existentes.
+  `ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS pdf_path TEXT`,
+  `ALTER TABLE specs   ADD COLUMN IF NOT EXISTS pdf_path TEXT`,
+  // Índices del listado paginado: ordena por fecha y filtra por estado. Con
+  // pocas órdenes da igual, pero el histórico de la planta crece cada día.
+  `CREATE INDEX IF NOT EXISTS ordenes_fecha_creacion ON ordenes (fecha_creacion DESC)`,
+  `CREATE INDEX IF NOT EXISTS ordenes_status ON ordenes (status)`,
+  `CREATE INDEX IF NOT EXISTS avances_orden ON avances (orden_id)`,
   // Precarga: puebla el registro con los clientes/specs de las órdenes existentes.
   `INSERT INTO clientes (nombre)
      SELECT DISTINCT TRIM(cliente) FROM ordenes
@@ -377,9 +387,30 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+// Fuera de la red local (Supabase, servidor remoto) la conexión va cifrada.
+const remota = !/@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL);
+
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: remota ? { rejectUnauthorized: false } : undefined,
+  max: 1,
+  connectionTimeoutMillis: 15000,
+});
 
 try {
+  // En una base NUEVA (Supabase recién creado, otra PC) primero hay que crear
+  // el esquema base; las migraciones de abajo solo agregan lo que vino después.
+  // schema.sql es idempotente, así que correrlo siempre es seguro.
+  const { rows } = await pool.query(
+    "SELECT to_regclass('public.usuarios') IS NOT NULL AS existe",
+  );
+  if (!rows[0].existe) {
+    console.log("Base nueva: creando el esquema desde db/schema.sql…");
+    const esquema = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "db", "schema.sql"), "utf8");
+    await pool.query(esquema);
+    console.log("✓ Esquema base creado.\n");
+  }
+
   for (const sql of MIGRACIONES) {
     await pool.query(sql);
     console.log(`✓ ${sql}`);

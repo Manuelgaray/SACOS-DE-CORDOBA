@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { useSession, canUpload } from '@/autenticacion/auth';
 import { combinarMedida, separarMedida, TIPOS_SACO, GRADOS } from '@/ordenes/medida';
 import { elementosDesdePlantilla, type ElementoCorte } from '@/explosion-materiales/explosion';
+import { subirPdf } from '@/compartido/subir-pdf';
 import {
   TablaCorteEditable, TextoLeido, aplicarCambio, nuevaFila, mensajeLectura,
 } from '@/explosion-materiales/ui/ExplosionMateriales';
@@ -71,7 +72,10 @@ export default function DisenoFormPage() {
   const [listo, setListo] = useState(false);
 
   const [pdfName, setPdfName] = useState('');
-  const [pdfDataUrl, setPdfDataUrl] = useState('');   // vacío al editar = conserva el guardado
+  // El archivo sube DIRECTO a Storage; a la API solo le llega su ruta.
+  const [pdfArchivo, setPdfArchivo] = useState<File | null>(null);
+  // El data URL solo se usa para "Leer del PDF" (OCR).
+  const [pdfDataUrl, setPdfDataUrl] = useState('');
   const [pdfGuardado, setPdfGuardado] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
 
@@ -155,6 +159,7 @@ export default function DisenoFormPage() {
       setError(`El PDF pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. El máximo es ${MAX_MB} MB.`);
       return;
     }
+    setPdfArchivo(file);
     const reader = new FileReader();
     reader.onload = () => {
       setPdfDataUrl(reader.result as string);
@@ -190,12 +195,25 @@ export default function DisenoFormPage() {
   // ── Guardar ────────────────────────────────────────────────────────────────
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
-    if (!editando && !pdfDataUrl) {
+    if (!editando && !pdfArchivo) {
       setError('Sube el PDF del diseño.');
       return;
     }
     setGuardando(true);
     setError(null);
+
+    // El plano sube directo a Storage con el spec como nombre; si no se cambió,
+    // la ruta va vacía y el servidor conserva el que ya estaba guardado.
+    let rutaPdf = '';
+    if (pdfArchivo) {
+      try {
+        rutaPdf = await subirPdf(pdfArchivo, { tipo: 'spec', clave: form.spec });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'No se pudo subir el PDF.');
+        setGuardando(false);
+        return;
+      }
+    }
 
     const cuerpo = {
       cliente: form.cliente,
@@ -205,7 +223,7 @@ export default function DisenoFormPage() {
       tipo_saco: form.tipo_saco,
       grado: form.grado,
       corte_elementos: corteElementos,
-      pdf_base64: pdfDataUrl,        // vacío al editar = conserva el guardado
+      pdf_path: rutaPdf,             // vacío al editar = conserva el guardado
       pdf_nombre: pdfName,
     };
 
